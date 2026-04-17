@@ -7,12 +7,12 @@ const TENCENT_API_BASE = 'https://qt.gtimg.cn/q=';
 
 // 解析腾讯财经返回的数据
 function parseTencentData(data: string, code: string): StockQuote | null {
-  // 腾讯格式：v_sh513130="1~国泰纳斯达克100ETF~513130~..."
+  // 腾讯格式：v_sh513130="1~恒生科技ETF华泰柏瑞~513130~..."
   const match = data.match(/="([^"]+)"/);
   if (!match || match[1] === '') return null;
 
   const parts = match[1].split('~');
-  if (parts.length < 45) return null;
+  if (parts.length < 40) return null;
 
   // 腾讯API字段顺序
   const name = parts[1];          // 名称
@@ -22,8 +22,6 @@ function parseTencentData(data: string, code: string): StockQuote | null {
   const high = parseFloat(parts[33]) || 0;    // 最高
   const low = parseFloat(parts[34]) || 0;     // 最低
   const time = parts[35] || '';               // 时间
-  const volume = parseFloat(parts[36]) || 0;  // 成交量
-  const amount = parseFloat(parts[37]) || 0;  // 成交额
 
   const change = price - preClose;
   const changePercent = preClose > 0 ? (change / preClose) * 100 : 0;
@@ -36,30 +34,32 @@ function parseTencentData(data: string, code: string): StockQuote | null {
     preClose,
     high,
     low,
-    volume,
-    amount,
+    volume: 0,
+    amount: 0,
     change,
     changePercent,
     time,
   };
 }
 
-// 带代理的fetch
+// 带代理的fetch，处理GBK编码
 async function fetchWithProxy(url: string): Promise<string> {
   const proxies = [
     (u: string) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    (u: string) => u, // 直接尝试（部分网络可行）
   ];
 
   for (const proxy of proxies) {
     try {
       const proxyUrl = proxy(url);
       const response = await fetch(proxyUrl, {
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(10000),
       });
       if (response.ok) {
-        const text = await response.text();
-        if (text && !text.includes('error')) {
+        // 获取原始字节，然后用GBK解码
+        const buffer = await response.arrayBuffer();
+        const decoder = new TextDecoder('gbk');
+        const text = decoder.decode(buffer);
+        if (text && !text.includes('pv_none_match')) {
           return text;
         }
       }
@@ -121,7 +121,15 @@ export async function fetchFundNav(code: string): Promise<{
   try {
     // 天天基金API - 更稳定的接口
     const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
-    const text = await fetchWithProxy(url);
+    const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) return null;
+
+    const buffer = await response.arrayBuffer();
+    const decoder = new TextDecoder('gbk');
+    const text = decoder.decode(buffer);
 
     // 解析格式：jsonpgz({"fundcode":"...","name":"...","jzrq":"...","dwjz":"..."})
     const jsonMatch = text.match(/jsonpgz\((\{[^}]+\})\)/);
@@ -131,17 +139,6 @@ export async function fetchFundNav(code: string): Promise<{
         nav: parseFloat(data.dwjz) || 0,
         name: data.name || '',
         date: data.jzrq || '',
-      };
-    }
-
-    // 备用解析
-    const nameMatch = text.match(/name:"([^"]+)"/);
-    const navMatch = text.match(/dwjz:"([^"]+)"/);
-    if (navMatch) {
-      return {
-        nav: parseFloat(navMatch[1]) || 0,
-        name: nameMatch ? nameMatch[1] : '',
-        date: '',
       };
     }
 
