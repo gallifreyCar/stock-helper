@@ -1,8 +1,5 @@
 // 持仓类型定义
 
-import type { StockQuote } from './stock';
-import type { FundQuote } from './fund';
-
 // 账户分组类型
 export type AccountType = 'long-term' | 'short-term' | 'fund';
 
@@ -13,54 +10,61 @@ export interface Account {
   createdAt: string;
 }
 
-// 股票持仓
-export interface StockPosition {
+// 股票交易记录（替代原来的持仓）
+export interface StockTransaction {
   id: string;
   accountId: string;
-  stockCode: string;      // 原始代码如 600000
+  stockCode: string;
   stockName: string;
-  buyPrice: number;       // 买入价格
-  buyDate: string;        // 买入日期
-  quantity: number;       // 持股数量（股）
-  fee: number;            // 手续费
+  type: 'buy' | 'sell';       // 买入/卖出
+  date: string;
+  price: number;              // 成交价
+  quantity: number;           // 数量（股）
+  fee: number;                // 手续费
+  amount: number;             // 成交金额（不含手续费）
 }
 
-// 基金持仓
-export interface FundPosition {
+// 基金交易记录
+export interface FundTransaction {
   id: string;
   accountId: string;
   fundCode: string;
   fundName: string;
-  buyNav: number;         // 买入净值
-  buyDate: string;
-  amount: number;         // 持有金额（元）
-  shares: number;         // 持有份额
+  type: 'buy' | 'sell';
+  date: string;
+  nav: number;                // 成交净值
+  shares: number;             // 份额
+  amount: number;             // 金额
 }
 
-// 持仓计算结果
-export interface StockPositionValue extends StockPosition {
-  currentPrice: number;
-  currentQuote: StockQuote;
-  marketValue: number;    // 当前市值
-  costValue: number;      // 成本市值
-  profit: number;         // 盈亏金额
-  profitPercent: number;  // 盈亏比例
-  costPrice: number;      // 成本价（含手续费）
+// 计算后的持仓汇总
+export interface StockPositionSummary {
+  stockCode: string;
+  stockName: string;
+  accountId: string;
+  totalQuantity: number;      // 当前持有数量
+  avgPrice: number;           // 平均成本价
+  totalCost: number;          // 总成本（含手续费）
+  realizedProfit: number;     // 已实现盈亏
+  transactions: StockTransaction[];
 }
 
-export interface FundPositionValue extends FundPosition {
-  currentNav: number;
-  currentQuote: FundQuote;
-  marketValue: number;
-  profit: number;
-  profitPercent: number;
+export interface FundPositionSummary {
+  fundCode: string;
+  fundName: string;
+  accountId: string;
+  totalShares: number;        // 当前持有份额
+  avgNav: number;             // 平均成本净值
+  totalCost: number;          // 总投入
+  realizedProfit: number;     // 已实现盈亏
+  transactions: FundTransaction[];
 }
 
 // 全局数据存储结构
 export interface StorageData {
   accounts: Account[];
-  stockPositions: StockPosition[];
-  fundPositions: FundPosition[];
+  stockTransactions: StockTransaction[];
+  fundTransactions: FundTransaction[];
   alerts: PriceAlert[];
   settings: Settings;
 }
@@ -92,8 +96,8 @@ export const defaultStorageData: StorageData = {
     { id: '2', name: '短线交易', type: 'short-term', createdAt: new Date().toISOString() },
     { id: '3', name: '基金定投', type: 'fund', createdAt: new Date().toISOString() },
   ],
-  stockPositions: [],
-  fundPositions: [],
+  stockTransactions: [],
+  fundTransactions: [],
   alerts: [],
   settings: {
     refreshInterval: 30,
@@ -104,4 +108,127 @@ export const defaultStorageData: StorageData = {
 // 生成唯一ID
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+}
+
+// 计算股票持仓汇总
+export function calculateStockPositions(transactions: StockTransaction[]): StockPositionSummary[] {
+  const grouped = new Map<string, StockTransaction[]>();
+
+  // 按股票代码分组
+  for (const tx of transactions) {
+    const key = `${tx.accountId}-${tx.stockCode}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, []);
+    }
+    grouped.get(key)!.push(tx);
+  }
+
+  const results: StockPositionSummary[] = [];
+
+  for (const [_, txs] of grouped) {
+    // 按日期排序
+    const sorted = txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let totalQuantity = 0;
+    let totalCost = 0;
+    let realizedProfit = 0;
+
+    for (const tx of sorted) {
+      if (tx.type === 'buy') {
+        totalQuantity += tx.quantity;
+        totalCost += tx.amount + tx.fee;
+      } else {
+        // 卖出时计算盈亏
+        const avgPriceBeforeSell = totalQuantity > 0 ? totalCost / totalQuantity : tx.price;
+        const sellRevenue = tx.amount - tx.fee;
+        const costOfSold = avgPriceBeforeSell * tx.quantity;
+
+        realizedProfit += sellRevenue - costOfSold;
+        totalQuantity -= tx.quantity;
+
+        // 按比例减少成本
+        if (totalQuantity > 0) {
+          totalCost = totalCost * (totalQuantity / (totalQuantity + tx.quantity));
+        } else {
+          totalCost = 0;
+        }
+      }
+    }
+
+    // 只保留有持仓或有已实现盈亏的
+    if (totalQuantity > 0 || realizedProfit !== 0) {
+      const first = sorted[0];
+      results.push({
+        stockCode: first.stockCode,
+        stockName: first.stockName,
+        accountId: first.accountId,
+        totalQuantity,
+        avgPrice: totalQuantity > 0 ? totalCost / totalQuantity : 0,
+        totalCost,
+        realizedProfit,
+        transactions: sorted,
+      });
+    }
+  }
+
+  return results;
+}
+
+// 计算基金持仓汇总
+export function calculateFundPositions(transactions: FundTransaction[]): FundPositionSummary[] {
+  const grouped = new Map<string, FundTransaction[]>();
+
+  for (const tx of transactions) {
+    const key = `${tx.accountId}-${tx.fundCode}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, []);
+    }
+    grouped.get(key)!.push(tx);
+  }
+
+  const results: FundPositionSummary[] = [];
+
+  for (const [_, txs] of grouped) {
+    const sorted = txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let totalShares = 0;
+    let totalCost = 0;
+    let realizedProfit = 0;
+
+    for (const tx of sorted) {
+      if (tx.type === 'buy') {
+        totalShares += tx.shares;
+        totalCost += tx.amount;
+      } else {
+        const avgNavBeforeSell = totalShares > 0 ? totalCost / totalShares : tx.nav;
+        const sellRevenue = tx.amount;
+        const costOfSold = avgNavBeforeSell * tx.shares;
+
+        realizedProfit += sellRevenue - costOfSold;
+        totalShares -= tx.shares;
+
+        if (totalShares > 0) {
+          totalCost = totalCost * (totalShares / (totalShares + tx.shares));
+        } else {
+          totalCost = 0;
+        }
+      }
+    }
+
+    if (totalShares > 0 || realizedProfit !== 0) {
+      const first = sorted[0];
+      results.push({
+        fundCode: first.fundCode,
+        fundName: first.fundName,
+        accountId: first.accountId,
+        totalShares,
+        avgNav: totalShares > 0 ? totalCost / totalShares : 0,
+        totalCost,
+        realizedProfit,
+        transactions: sorted,
+      });
+    }
+  }
+
+  return results;
 }

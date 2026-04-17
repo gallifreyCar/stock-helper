@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown, PiggyBank } from 'lucide-react';
 import { useStorage } from '../hooks/useStorage';
 import { fetchStockQuotes, fetchFundNavs } from '../utils/api';
 import { calculateStockPositionValue, calculateFundPositionValue, formatMoney, formatChange } from '../utils/calculator';
+import { calculateStockPositions, calculateFundPositions } from '../types';
 import type { StockQuote } from '../types';
 
 export function Dashboard() {
@@ -13,78 +14,93 @@ export function Dashboard() {
   const [fundNavs, setFundNavs] = useState<Map<string, { nav: number; name: string }>>(new Map());
   const [loading, setLoading] = useState(true);
 
+  // 计算持仓汇总
+  const stockPositions = calculateStockPositions(data.stockTransactions);
+  const fundPositions = calculateFundPositions(data.fundTransactions);
+
   // 获取实时行情
   useEffect(() => {
     async function fetchQuotes() {
       setLoading(true);
 
-      // 获取所有股票代码
-      const stockCodes = data.stockPositions.map(p => p.stockCode);
+      // 获取有持仓的股票代码
+      const stockCodes = stockPositions.filter(p => p.totalQuantity > 0).map(p => p.stockCode);
       if (stockCodes.length > 0) {
         const quotes = await fetchStockQuotes(stockCodes);
-        const quoteMap = new Map(quotes.map(q => [q.code, q]));
-        setStockQuotes(quoteMap);
+        setStockQuotes(new Map(quotes.map(q => [q.code, q])));
       }
 
-      // 获取所有基金代码
-      const fundCodes = data.fundPositions.map(p => p.fundCode);
+      // 获取有持仓的基金代码
+      const fundCodes = fundPositions.filter(p => p.totalShares > 0).map(p => p.fundCode);
       if (fundCodes.length > 0) {
-        const navMap = await fetchFundNavs(fundCodes);
-        setFundNavs(navMap);
+        setFundNavs(await fetchFundNavs(fundCodes));
       }
 
       setLoading(false);
     }
 
     fetchQuotes();
-  }, [data.stockPositions, data.fundPositions]);
+  }, [data.stockTransactions, data.fundTransactions]);
 
   // 计算总市值和总盈亏
-  const totalStockValue = data.stockPositions.reduce((sum, pos) => {
+  const totalStockValue = stockPositions.reduce((sum, pos) => {
+    if (pos.totalQuantity <= 0) return sum;
     const quote = stockQuotes.get(pos.stockCode);
     if (quote) {
-      return sum + calculateStockPositionValue(pos, quote).marketValue;
+      return sum + calculateStockPositionValue(pos, quote.price).marketValue;
     }
     return sum;
   }, 0);
 
-  const totalStockProfit = data.stockPositions.reduce((sum, pos) => {
+  const totalStockProfit = stockPositions.reduce((sum, pos) => {
     const quote = stockQuotes.get(pos.stockCode);
-    if (quote) {
-      return sum + calculateStockPositionValue(pos, quote).profit;
+    if (quote && pos.totalQuantity > 0) {
+      return sum + calculateStockPositionValue(pos, quote.price).totalProfit;
+    }
+    // 已清仓的也要计入已实现盈亏
+    if (pos.totalQuantity === 0) {
+      return sum + pos.realizedProfit;
     }
     return sum;
   }, 0);
 
-  const totalFundValue = data.fundPositions.reduce((sum, pos) => {
+  const totalFundValue = fundPositions.reduce((sum, pos) => {
+    if (pos.totalShares <= 0) return sum;
     const navData = fundNavs.get(pos.fundCode);
     if (navData) {
       return sum + calculateFundPositionValue(pos, navData.nav).marketValue;
     }
-    return sum + pos.amount;
+    return sum + pos.totalCost;
   }, 0);
 
-  const totalFundProfit = data.fundPositions.reduce((sum, pos) => {
+  const totalFundProfit = fundPositions.reduce((sum, pos) => {
     const navData = fundNavs.get(pos.fundCode);
-    if (navData) {
-      return sum + calculateFundPositionValue(pos, navData.nav).profit;
+    if (navData && pos.totalShares > 0) {
+      return sum + calculateFundPositionValue(pos, navData.nav).totalProfit;
     }
-    return 0;
+    if (pos.totalShares === 0) {
+      return sum + pos.realizedProfit;
+    }
+    return sum;
   }, 0);
 
   const totalValue = totalStockValue + totalFundValue;
   const totalProfit = totalStockProfit + totalFundProfit;
-  const profitPercent = (totalStockValue + totalFundValue - totalProfit) > 0
-    ? (totalProfit / (totalValue - totalProfit)) * 100
-    : 0;
+  const totalCost = stockPositions.reduce((s, p) => s + p.totalCost, 0) +
+                    fundPositions.reduce((s, p) => s + p.totalCost, 0);
+  const profitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
 
-  if (data.stockPositions.length === 0 && data.fundPositions.length === 0) {
+  // 当前持有数量
+  const holdingStocks = stockPositions.filter(p => p.totalQuantity > 0);
+  const holdingFunds = fundPositions.filter(p => p.totalShares > 0);
+
+  if (holdingStocks.length === 0 && holdingFunds.length === 0) {
     return (
       <div className="text-center py-12">
         <PiggyBank className="w-16 h-16 text-gray-300 mx-auto mb-4" />
         <p className="text-gray-500 mb-4">暂无持仓数据</p>
-        <a href="/portfolio" className="text-blue-600 hover:underline">
-          前去添加持仓 →
+        <a href="#/portfolio" className="text-blue-600 hover:underline">
+          前去添加交易记录 →
         </a>
       </div>
     );
@@ -125,10 +141,10 @@ export function Dashboard() {
         <div className="bg-white rounded-lg shadow p-6">
           <p className="text-sm text-gray-500 mb-2">持仓数</p>
           <p className="text-2xl font-bold text-gray-900">
-            {data.stockPositions.length + data.fundPositions.length}
+            {holdingStocks.length + holdingFunds.length}
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            股票 {data.stockPositions.length} · 基金 {data.fundPositions.length}
+            股票 {holdingStocks.length} · 基金 {holdingFunds.length}
           </p>
         </div>
       </div>
@@ -144,22 +160,22 @@ export function Dashboard() {
         ) : (
           <div className="divide-y divide-gray-100">
             {/* 股票持仓 */}
-            {data.stockPositions.map(pos => {
+            {holdingStocks.map(pos => {
               const quote = stockQuotes.get(pos.stockCode);
               if (!quote) return null;
 
-              const value = calculateStockPositionValue(pos, quote);
+              const value = calculateStockPositionValue(pos, quote.price);
 
               return (
-                <div key={pos.id} className="p-4 flex items-center justify-between">
+                <div key={pos.stockCode} className="p-4 flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-900">{quote.name}</p>
-                    <p className="text-sm text-gray-500">{pos.stockCode}</p>
+                    <p className="text-sm text-gray-500">{pos.stockCode} · {pos.totalQuantity}股</p>
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-gray-900">{formatMoney(value.marketValue)}</p>
-                    <p className={`text-sm ${value.profit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatChange(value.profitPercent)}
+                    <p className={`text-sm ${value.totalProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {formatChange(value.unrealizedPercent)}
                     </p>
                   </div>
                 </div>
@@ -167,23 +183,23 @@ export function Dashboard() {
             })}
 
             {/* 基金持仓 */}
-            {data.fundPositions.map(pos => {
+            {holdingFunds.map(pos => {
               const navData = fundNavs.get(pos.fundCode);
-              const nav = navData?.nav || pos.buyNav;
+              const nav = navData?.nav || pos.avgNav;
               const value = calculateFundPositionValue(pos, nav);
 
               return (
-                <div key={pos.id} className="p-4 flex items-center justify-between">
+                <div key={pos.fundCode} className="p-4 flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-900">
                       {navData?.name || pos.fundName}
                     </p>
-                    <p className="text-sm text-gray-500">{pos.fundCode}</p>
+                    <p className="text-sm text-gray-500">{pos.fundCode} · {pos.totalShares.toFixed(2)}份</p>
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-gray-900">{formatMoney(value.marketValue)}</p>
-                    <p className={`text-sm ${value.profit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatChange(value.profitPercent)}
+                    <p className={`text-sm ${value.totalProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {formatChange(value.unrealizedPercent)}
                     </p>
                   </div>
                 </div>

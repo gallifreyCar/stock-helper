@@ -45,7 +45,7 @@ export function useStorage() {
     try {
       const imported = JSON.parse(json) as StorageData;
       // 验证基本结构
-      if (!imported.accounts || !imported.stockPositions || !imported.fundPositions) {
+      if (!imported.accounts || !imported.stockTransactions || !imported.fundTransactions) {
         throw new Error('Invalid data structure');
       }
       setData(imported);

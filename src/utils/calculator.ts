@@ -1,51 +1,54 @@
 // 收益计算工具
 
-import type { StockPosition, FundPosition, StockQuote } from '../types';
+import type { StockPositionSummary, FundPositionSummary } from '../types';
 
-// 计算股票持仓价值
+// 计算股票持仓市值和盈亏
 export function calculateStockPositionValue(
-  position: StockPosition,
-  quote: StockQuote
+  position: StockPositionSummary,
+  currentPrice: number
 ): {
   marketValue: number;
-  costValue: number;
-  profit: number;
-  profitPercent: number;
-  costPrice: number;
+  unrealizedProfit: number;
+  unrealizedPercent: number;
+  totalProfit: number;        // 已实现 + 未实现
 } {
-  const costPrice = (position.buyPrice * position.quantity + position.fee) / position.quantity;
-  const costValue = costPrice * position.quantity;
-  const marketValue = quote.price * position.quantity;
-  const profit = marketValue - costValue;
-  const profitPercent = costValue > 0 ? (profit / costValue) * 100 : 0;
+  const marketValue = currentPrice * position.totalQuantity;
+  const unrealizedProfit = marketValue - position.totalCost;
+  const unrealizedPercent = position.totalCost > 0
+    ? (unrealizedProfit / position.totalCost) * 100
+    : 0;
+  const totalProfit = position.realizedProfit + unrealizedProfit;
 
   return {
     marketValue,
-    costValue,
-    profit,
-    profitPercent,
-    costPrice,
+    unrealizedProfit,
+    unrealizedPercent,
+    totalProfit,
   };
 }
 
-// 计算基金持仓价值
+// 计算基金持仓市值和盈亏
 export function calculateFundPositionValue(
-  position: FundPosition,
-  nav: number
+  position: FundPositionSummary,
+  currentNav: number
 ): {
   marketValue: number;
-  profit: number;
-  profitPercent: number;
+  unrealizedProfit: number;
+  unrealizedPercent: number;
+  totalProfit: number;
 } {
-  const marketValue = position.shares * nav;
-  const costValue = position.amount;
-  const profit = marketValue - costValue;
-  const profitPercent = costValue > 0 ? (profit / costValue) * 100 : 0;
+  const marketValue = currentNav * position.totalShares;
+  const unrealizedProfit = marketValue - position.totalCost;
+  const unrealizedPercent = position.totalCost > 0
+    ? (unrealizedProfit / position.totalCost) * 100
+    : 0;
+  const totalProfit = position.realizedProfit + unrealizedProfit;
 
   return {
     marketValue,
-    profit,
-    profitPercent,
+    unrealizedProfit,
+    unrealizedPercent,
+    totalProfit,
   };
 }
 

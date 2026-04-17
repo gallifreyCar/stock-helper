@@ -1,7 +1,8 @@
 export { Layout } from './Layout';
 export { Dashboard } from './Dashboard';
 export { Portfolio } from './Portfolio';
-export { AddPositionModal } from './AddPositionModal';
+export { AddTransactionModal } from './AddTransactionModal';
+export { TransactionHistory } from './TransactionHistory';
 export { Screener } from './Screener';
 export { Alerts } from './Alerts';
 export { Settings } from './Settings';

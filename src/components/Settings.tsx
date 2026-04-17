@@ -50,12 +50,12 @@ export function Settings() {
                 <p className="text-xs text-gray-500">账户</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{data.stockPositions.length}</p>
-                <p className="text-xs text-gray-500">股票持仓</p>
+                <p className="text-2xl font-bold text-gray-900">{data.stockTransactions.length}</p>
+                <p className="text-xs text-gray-500">股票交易</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{data.fundPositions.length}</p>
-                <p className="text-xs text-gray-500">基金持仓</p>
+                <p className="text-2xl font-bold text-gray-900">{data.fundTransactions.length}</p>
+                <p className="text-xs text-gray-500">基金交易</p>
               </div>
             </div>
           </div>
