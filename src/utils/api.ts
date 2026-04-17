@@ -74,9 +74,8 @@ async function fetchWithProxy(url: string): Promise<string> {
 export async function fetchStockQuote(code: string): Promise<StockQuote | null> {
   try {
     const fullCode = formatStockCode(code);
-    // 腾讯API前缀：sh/sz
-    const prefix = fullCode.startsWith('sh') ? 'sh' : 'sz';
-    const url = `${TENCENT_API_BASE}${prefix}_${code}`;
+    // 腾讯API格式：sh600000 或 sz000001（不带下划线）
+    const url = `${TENCENT_API_BASE}${fullCode}`;
     const text = await fetchWithProxy(url);
     return parseTencentData(text, code);
   } catch (e) {
@@ -90,11 +89,7 @@ export async function fetchStockQuotes(codes: string[]): Promise<StockQuote[]> {
   if (codes.length === 0) return [];
 
   try {
-    const queryCodes = codes.map(code => {
-      const fullCode = formatStockCode(code);
-      const prefix = fullCode.startsWith('sh') ? 'sh' : 'sz';
-      return `${prefix}_${code}`;
-    }).join(',');
+    const queryCodes = codes.map(code => formatStockCode(code)).join(',');
 
     const url = `${TENCENT_API_BASE}${queryCodes}`;
     const text = await fetchWithProxy(url);
