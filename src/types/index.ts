@@ -24,3 +24,17 @@ export interface FundPosition {
   amount: number;
   shares: number;
 }
+
+export interface StockAnalysis {
+  code: string;
+  name: string;
+  industry: string;
+  financial: {
+    pe: number | null;
+    pb: number | null;
+    roe: number | null;
+    marketCap: number | null;
+  };
+  analysis: string;
+  analyzedAt: string;
+}

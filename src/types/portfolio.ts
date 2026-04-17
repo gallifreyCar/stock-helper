@@ -87,7 +87,44 @@ export interface PriceAlert {
 export interface Settings {
   refreshInterval: number;  // 刷新间隔（秒）
   showNotification: boolean;
+  aiConfig?: AIConfig;      // AI配置
 }
+
+// AI配置
+export interface AIConfig {
+  provider: 'deepseek' | 'openai' | 'claude' | 'custom';
+  apiKey: string;
+  baseUrl?: string;         // 自定义API地址
+  model?: string;           // 模型名称
+}
+
+// AI提供商配置
+export const AI_PROVIDERS = {
+  deepseek: {
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    models: ['deepseek-chat', 'deepseek-coder'],
+    defaultModel: 'deepseek-chat',
+  },
+  openai: {
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
+    defaultModel: 'gpt-4o-mini',
+  },
+  claude: {
+    name: 'Claude',
+    baseUrl: 'https://api.anthropic.com/v1',
+    models: ['claude-3-haiku-20240307', 'claude-3-sonnet-20240229'],
+    defaultModel: 'claude-3-haiku-20240307',
+  },
+  custom: {
+    name: '自定义',
+    baseUrl: '',
+    models: [],
+    defaultModel: '',
+  },
+};
 
 // 默认数据
 export const defaultStorageData: StorageData = {

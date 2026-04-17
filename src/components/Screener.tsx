@@ -1,27 +1,42 @@
-// Screener 股票筛选器 - 支持AI分析
+// Screener 股票筛选器 - 支持实时AI分析
 
 import { useState, useEffect } from 'react';
-import { Filter, TrendingUp, TrendingDown, Sparkles } from 'lucide-react';
+import { Filter, TrendingUp, TrendingDown, Sparkles, Settings, Loader2 } from 'lucide-react';
+import { useStorage } from '../hooks/useStorage';
+import { AI_PROVIDERS, type AIConfig } from '../types';
 
-interface StockAnalysis {
+// 本地股票基础数据（无API时使用）
+const LOCAL_STOCK_DATA: Array<{
   code: string;
   name: string;
   industry: string;
-  financial: {
-    pe: number | null;
-    pb: number | null;
-    roe: number | null;
-    marketCap: number | null;
-    dividendRate: number | null;
-  };
-  analysis: string;
-  analyzedAt: string;
-}
+  pe: number | null;
+  pb: number | null;
+  roe: number | null;
+  marketCap: number | null;
+  pregeneratedAnalysis?: string;
+}> = [
+  { code: '600036', name: '招商银行', industry: '银行', pe: 6.8, pb: 0.85, roe: 15.2, marketCap: 3200 },
+  { code: '601318', name: '中国平安', industry: '保险', pe: 8.5, pb: 1.2, roe: 12.8, marketCap: 4500 },
+  { code: '600000', name: '浦发银行', industry: '银行', pe: 5.2, pb: 0.45, roe: 11.5, marketCap: 850 },
+  { code: '601398', name: '工商银行', industry: '银行', pe: 5.5, pb: 0.55, roe: 10.8, marketCap: 1800 },
+  { code: '600519', name: '贵州茅台', industry: '白酒', pe: 28, pb: 8.5, roe: 32, marketCap: 18000 },
+  { code: '000858', name: '五粮液', industry: '白酒', pe: 22, pb: 6.2, roe: 25, marketCap: 5500 },
+  { code: '002415', name: '海康威视', industry: '电子', pe: 18, pb: 3.5, roe: 22, marketCap: 2800 },
+  { code: '300750', name: '宁德时代', industry: '电池', pe: 35, pb: 5.8, roe: 18, marketCap: 8500 },
+  { code: '601012', name: '隆基绿能', industry: '光伏', pe: 12, pb: 2.8, roe: 20, marketCap: 1800 },
+  { code: '002594', name: '比亚迪', industry: '汽车', pe: 45, pb: 8.5, roe: 12, marketCap: 6000 },
+  { code: '513130', name: '恒生科技ETF', industry: 'ETF', pe: null, pb: null, roe: null, marketCap: null },
+  { code: '510300', name: '沪深300ETF', industry: 'ETF', pe: null, pb: null, roe: null, marketCap: null },
+];
 
 export function Screener() {
-  const [stockData, setStockData] = useState<StockAnalysis[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedStock, setSelectedStock] = useState<StockAnalysis | null>(null);
+  const { data } = useStorage();
+  const [stockData, setStockData] = useState(LOCAL_STOCK_DATA);
+  const [selectedStock, setSelectedStock] = useState<typeof LOCAL_STOCK_DATA[0] | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<string>('');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string>('');
 
   const [criteria, setCriteria] = useState({
     industry: '全部',
@@ -37,17 +52,21 @@ export function Screener() {
   const [sortBy, setSortBy] = useState<'pe' | 'pb' | 'roe' | 'marketCap'>('roe');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // 加载股票数据
+  // 尝试加载预生成的分析数据
   useEffect(() => {
     fetch('/stock-helper/data/stock-analysis.json')
       .then(res => res.json())
       .then(data => {
-        setStockData(data);
-        setLoading(false);
+        if (data && data.length > 0) {
+          const merged = LOCAL_STOCK_DATA.map(local => {
+            const found = data.find((d: any) => d.code === local.code);
+            return found ? { ...local, pregeneratedAnalysis: found.analysis } : local;
+          });
+          setStockData(merged);
+        }
       })
-      .catch(err => {
-        console.error('加载股票数据失败:', err);
-        setLoading(false);
+      .catch(() => {
+        // 使用本地数据
       });
   }, []);
 
@@ -59,27 +78,26 @@ export function Screener() {
     .filter(stock => {
       if (stock.industry === 'ETF') return criteria.industry === 'ETF' || criteria.industry === '全部';
       if (criteria.industry !== '全部' && stock.industry !== criteria.industry) return false;
-      if (criteria.peMin !== null && stock.financial.pe !== null && stock.financial.pe < criteria.peMin) return false;
-      if (criteria.peMax !== null && stock.financial.pe !== null && stock.financial.pe > criteria.peMax) return false;
-      if (criteria.pbMin !== null && stock.financial.pb !== null && stock.financial.pb < criteria.pbMin) return false;
-      if (criteria.pbMax !== null && stock.financial.pb !== null && stock.financial.pb > criteria.pbMax) return false;
-      if (criteria.roeMin !== null && stock.financial.roe !== null && stock.financial.roe < criteria.roeMin) return false;
-      if (criteria.marketCapMin !== null && stock.financial.marketCap !== null && stock.financial.marketCap < criteria.marketCapMin) return false;
-      if (criteria.marketCapMax !== null && stock.financial.marketCap !== null && stock.financial.marketCap > criteria.marketCapMax) return false;
+      if (criteria.peMin !== null && stock.pe !== null && stock.pe < criteria.peMin) return false;
+      if (criteria.peMax !== null && stock.pe !== null && stock.pe > criteria.peMax) return false;
+      if (criteria.pbMin !== null && stock.pb !== null && stock.pb < criteria.pbMin) return false;
+      if (criteria.pbMax !== null && stock.pb !== null && stock.pb > criteria.pbMax) return false;
+      if (criteria.roeMin !== null && stock.roe !== null && stock.roe < criteria.roeMin) return false;
+      if (criteria.marketCapMin !== null && stock.marketCap !== null && stock.marketCap < criteria.marketCapMin) return false;
+      if (criteria.marketCapMax !== null && stock.marketCap !== null && stock.marketCap > criteria.marketCapMax) return false;
       return true;
     })
     .sort((a, b) => {
-      const aVal = a.financial[sortBy] || 0;
-      const bVal = b.financial[sortBy] || 0;
+      const aVal = a[sortBy] || 0;
+      const bVal = b[sortBy] || 0;
       return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
     });
 
   // 快速筛选模板
   const quickFilters = [
-    { label: '低估值', criteria: { peMax: 10, pbMax: 1.5 } },
+    { label: '低估值', criteria: { peMax: 15, pbMax: 1.5 } },
     { label: '高ROE', criteria: { roeMin: 15 } },
     { label: '大盘股', criteria: { marketCapMin: 1000 } },
-    { label: '高分红', criteria: {} }, // 需要数据支持
     { label: '银行股', criteria: { industry: '银行' } },
     { label: 'ETF', criteria: { industry: 'ETF' } },
   ];
@@ -88,13 +106,83 @@ export function Screener() {
     setCriteria({ ...criteria, industry: '全部', ...filter });
   };
 
-  if (loading) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">加载股票数据中...</p>
-      </div>
-    );
-  }
+  // 调用AI获取分析
+  const fetchAiAnalysis = async (stock: typeof LOCAL_STOCK_DATA[0]) => {
+    const aiConfig: AIConfig | undefined = data.settings.aiConfig;
+
+    if (!aiConfig?.apiKey) {
+      // 如果有预生成的分析，显示它
+      if (stock.pregeneratedAnalysis) {
+        setAiAnalysis(stock.pregeneratedAnalysis);
+        return;
+      }
+      setAnalysisError('请先在「设置」页面配置API Key');
+      return;
+    }
+
+    setAnalyzing(true);
+    setAnalysisError('');
+    setAiAnalysis('');
+
+    const provider = AI_PROVIDERS[aiConfig.provider];
+    const baseUrl = aiConfig.baseUrl || provider.baseUrl;
+    const model = aiConfig.model || provider.defaultModel;
+
+    const prompt = `
+请分析以下A股的财务指标，给出数据分析摘要（注意：这是数据分析，不是投资建议）：
+
+股票：${stock.name} (${stock.code})
+行业：${stock.industry}
+PE（市盈率）：${stock.pe || '无数据'}
+PB（市净率）：${stock.pb || '无数据'}
+ROE（净资产收益率）：${stock.roe || '无数据'}%
+市值：${stock.marketCap || '无数据'}亿
+
+请用2-3句话简要分析：
+1. 估值水平（PE/PB在行业中处于什么位置）
+2. 盈利能力（ROE表现）
+3. 适合什么类型的投资者
+
+回复要简洁，不要说"建议买入"之类的投资建议。
+`;
+
+    try {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${aiConfig.apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 500,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        setAnalysisError(err.error?.message || 'API调用失败');
+        return;
+      }
+
+      const result = await response.json();
+      const analysis = result.choices?.[0]?.message?.content || '';
+      setAiAnalysis(analysis.trim());
+    } catch (e: any) {
+      setAnalysisError(e.message || '网络错误');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // 打开分析弹窗
+  const openAnalysis = (stock: typeof LOCAL_STOCK_DATA[0]) => {
+    setSelectedStock(stock);
+    setAiAnalysis('');
+    setAnalysisError('');
+    fetchAiAnalysis(stock);
+  };
 
   return (
     <div className="space-y-6">
@@ -233,7 +321,7 @@ export function Screener() {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PE</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PB</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROE</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">市值</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">市值(亿)</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">AI分析</th>
             </tr>
           </thead>
@@ -255,32 +343,24 @@ export function Screener() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{stock.industry}</td>
                   <td className="px-4 py-3 text-sm">
-                    {stock.financial.pe ? (
-                      <span className={stock.financial.pe < 15 ? 'text-green-600' : stock.financial.pe > 30 ? 'text-red-600' : 'text-gray-900'}>
-                        {stock.financial.pe.toFixed(1)}
-                      </span>
-                    ) : '-'}
+                    <span className={stock.pe && stock.pe < 15 ? 'text-green-600' : stock.pe && stock.pe > 30 ? 'text-red-600' : 'text-gray-900'}>
+                      {stock.pe ? stock.pe.toFixed(1) : '-'}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {stock.financial.pb ? (
-                      <span className={stock.financial.pb < 1 ? 'text-green-600' : stock.financial.pb > 3 ? 'text-red-600' : 'text-gray-900'}>
-                        {stock.financial.pb.toFixed(2)}
-                      </span>
-                    ) : '-'}
+                    <span className={stock.pb && stock.pb < 1 ? 'text-green-600' : stock.pb && stock.pb > 3 ? 'text-red-600' : 'text-gray-900'}>
+                      {stock.pb ? stock.pb.toFixed(2) : '-'}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {stock.financial.roe ? (
-                      <span className={stock.financial.roe > 20 ? 'text-red-600 font-medium' : stock.financial.roe > 10 ? 'text-gray-900' : 'text-gray-500'}>
-                        {stock.financial.roe.toFixed(1)}%
-                      </span>
-                    ) : '-'}
+                    <span className={stock.roe && stock.roe > 20 ? 'text-red-600 font-medium' : stock.roe && stock.roe > 10 ? 'text-gray-900' : 'text-gray-500'}>
+                      {stock.roe ? `${stock.roe.toFixed(1)}%` : '-'}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">
-                    {stock.financial.marketCap ? `${stock.financial.marketCap}亿` : '-'}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">{stock.marketCap || '-'}</td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => setSelectedStock(stock)}
+                      onClick={() => openAnalysis(stock)}
                       className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
                     >
                       <Sparkles className="w-4 h-4" />
@@ -292,12 +372,19 @@ export function Screener() {
             )}
           </tbody>
         </table>
+
+        {filteredStocks.length === 0 && (
+          <div className="p-8 text-center text-gray-500">
+            暂无符合条件的股票
+          </div>
+        )}
       </div>
 
       {/* AI分析弹窗 */}
       {selectedStock && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+            {/* Header */}
             <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-5 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">{selectedStock.name}</h2>
@@ -316,28 +403,49 @@ export function Screener() {
               <div className="grid grid-cols-4 gap-4 mb-4 text-center">
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500">PE</p>
-                  <p className="text-lg font-bold">{selectedStock.financial.pe || '-'}</p>
+                  <p className="text-lg font-bold">{selectedStock.pe || '-'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500">PB</p>
-                  <p className="text-lg font-bold">{selectedStock.financial.pb || '-'}</p>
+                  <p className="text-lg font-bold">{selectedStock.pb || '-'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500">ROE</p>
-                  <p className="text-lg font-bold">{selectedStock.financial.roe ? `${selectedStock.financial.roe}%` : '-'}</p>
+                  <p className="text-lg font-bold">{selectedStock.roe ? `${selectedStock.roe}%` : '-'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500">市值</p>
-                  <p className="text-lg font-bold">{selectedStock.financial.marketCap ? `${selectedStock.financial.marketCap}亿` : '-'}</p>
+                  <p className="text-lg font-bold">{selectedStock.marketCap ? `${selectedStock.marketCap}亿` : '-'}</p>
                 </div>
               </div>
 
-              {/* AI分析 */}
-              <div className="bg-blue-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  {selectedStock.analysis}
-                </p>
-              </div>
+              {/* AI分析内容 */}
+              {analyzing ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="ml-2 text-gray-500">AI正在分析...</span>
+                </div>
+              ) : analysisError ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-600">{analysisError}</p>
+                  {!data.settings.aiConfig?.apiKey && (
+                    <button
+                      onClick={() => {
+                        setSelectedStock(null);
+                        window.location.hash = '/settings';
+                      }}
+                      className="mt-2 flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                    >
+                      <Settings className="w-4 h-4" />
+                      前去配置API Key
+                    </button>
+                  )}
+                </div>
+              ) : aiAnalysis ? (
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 leading-relaxed">{aiAnalysis}</p>
+                </div>
+              ) : null}
 
               <p className="text-xs text-gray-400 mt-4 text-center">
                 ⚠️ 以上为数据分析摘要，仅供参考，不构成投资建议
@@ -348,7 +456,7 @@ export function Screener() {
       )}
 
       <p className="text-xs text-gray-400 text-center">
-        数据每周自动更新。PE&lt;15 或 PB&lt;1 标为绿色表示估值较低。分析由AI生成，仅供参考。
+        PE&lt;15 或 PB&lt;1 标为绿色表示估值较低。点击「AI分析」可获取实时分析（需配置API Key）。
       </p>
     </div>
   );
