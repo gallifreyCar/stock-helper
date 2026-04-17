@@ -1,85 +1,105 @@
-// Screener 股票筛选器
+// Screener 股票筛选器 - 支持AI分析
 
-import { useState } from 'react';
-import { Filter, TrendingUp, TrendingDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Filter, TrendingUp, TrendingDown, Sparkles } from 'lucide-react';
 
-// 预生成的股票基础数据示例
-const stockBasics = [
-  { code: '600000', name: '浦发银行', industry: '银行', pe: 5.2, pb: 0.45, roe: 11.5, marketCap: 850 },
-  { code: '600036', name: '招商银行', industry: '银行', pe: 6.8, pb: 0.85, roe: 15.2, marketCap: 3200 },
-  { code: '601318', name: '中国平安', industry: '保险', pe: 8.5, pb: 1.2, roe: 12.8, marketCap: 4500 },
-  { code: '600519', name: '贵州茅台', industry: '白酒', pe: 28, pb: 8.5, roe: 32, marketCap: 18000 },
-  { code: '000858', name: '五粮液', industry: '白酒', pe: 22, pb: 6.2, roe: 25, marketCap: 5500 },
-  { code: '000001', name: '平安银行', industry: '银行', pe: 6.5, pb: 0.65, roe: 10.5, marketCap: 1800 },
-  { code: '002415', name: '海康威视', industry: '电子', pe: 18, pb: 3.5, roe: 22, marketCap: 2800 },
-  { code: '300750', name: '宁德时代', industry: '电池', pe: 35, pb: 5.8, roe: 18, marketCap: 8500 },
-  { code: '601012', name: '隆基绿能', industry: '光伏', pe: 12, pb: 2.8, roe: 20, marketCap: 1800 },
-  { code: '002594', name: '比亚迪', industry: '汽车', pe: 45, pb: 8.5, roe: 12, marketCap: 6000 },
-];
-
-interface FilterCriteria {
+interface StockAnalysis {
+  code: string;
+  name: string;
   industry: string;
-  peMin: number | null;
-  peMax: number | null;
-  pbMin: number | null;
-  pbMax: number | null;
-  roeMin: number | null;
-  marketCapMin: number | null;
-  marketCapMax: number | null;
+  financial: {
+    pe: number | null;
+    pb: number | null;
+    roe: number | null;
+    marketCap: number | null;
+    dividendRate: number | null;
+  };
+  analysis: string;
+  analyzedAt: string;
 }
 
-const industries = ['全部', '银行', '保险', '白酒', '电子', '电池', '光伏', '汽车'];
-
 export function Screener() {
-  const [criteria, setCriteria] = useState<FilterCriteria>({
+  const [stockData, setStockData] = useState<StockAnalysis[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedStock, setSelectedStock] = useState<StockAnalysis | null>(null);
+
+  const [criteria, setCriteria] = useState({
     industry: '全部',
-    peMin: null,
-    peMax: null,
-    pbMin: null,
-    pbMax: null,
-    roeMin: null,
-    marketCapMin: null,
-    marketCapMax: null,
+    peMin: null as number | null,
+    peMax: null as number | null,
+    pbMin: null as number | null,
+    pbMax: null as number | null,
+    roeMin: null as number | null,
+    marketCapMin: null as number | null,
+    marketCapMax: null as number | null,
   });
 
   const [sortBy, setSortBy] = useState<'pe' | 'pb' | 'roe' | 'marketCap'>('roe');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // 加载股票数据
+  useEffect(() => {
+    fetch('/stock-helper/data/stock-analysis.json')
+      .then(res => res.json())
+      .then(data => {
+        setStockData(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('加载股票数据失败:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  // 获取行业列表
+  const industries = ['全部', ...new Set(stockData.map(s => s.industry))];
+
   // 筛选股票
-  const filteredStocks = stockBasics
+  const filteredStocks = stockData
     .filter(stock => {
+      if (stock.industry === 'ETF') return criteria.industry === 'ETF' || criteria.industry === '全部';
       if (criteria.industry !== '全部' && stock.industry !== criteria.industry) return false;
-      if (criteria.peMin !== null && stock.pe < criteria.peMin) return false;
-      if (criteria.peMax !== null && stock.pe > criteria.peMax) return false;
-      if (criteria.pbMin !== null && stock.pb < criteria.pbMin) return false;
-      if (criteria.pbMax !== null && stock.pb > criteria.pbMax) return false;
-      if (criteria.roeMin !== null && stock.roe < criteria.roeMin) return false;
-      if (criteria.marketCapMin !== null && stock.marketCap < criteria.marketCapMin) return false;
-      if (criteria.marketCapMax !== null && stock.marketCap > criteria.marketCapMax) return false;
+      if (criteria.peMin !== null && stock.financial.pe !== null && stock.financial.pe < criteria.peMin) return false;
+      if (criteria.peMax !== null && stock.financial.pe !== null && stock.financial.pe > criteria.peMax) return false;
+      if (criteria.pbMin !== null && stock.financial.pb !== null && stock.financial.pb < criteria.pbMin) return false;
+      if (criteria.pbMax !== null && stock.financial.pb !== null && stock.financial.pb > criteria.pbMax) return false;
+      if (criteria.roeMin !== null && stock.financial.roe !== null && stock.financial.roe < criteria.roeMin) return false;
+      if (criteria.marketCapMin !== null && stock.financial.marketCap !== null && stock.financial.marketCap < criteria.marketCapMin) return false;
+      if (criteria.marketCapMax !== null && stock.financial.marketCap !== null && stock.financial.marketCap > criteria.marketCapMax) return false;
       return true;
     })
     .sort((a, b) => {
-      const aVal = a[sortBy];
-      const bVal = b[sortBy];
+      const aVal = a.financial[sortBy] || 0;
+      const bVal = b.financial[sortBy] || 0;
       return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
     });
 
   // 快速筛选模板
   const quickFilters = [
-    { label: '低估值', criteria: { peMax: 10, pbMax: 1 } },
+    { label: '低估值', criteria: { peMax: 10, pbMax: 1.5 } },
     { label: '高ROE', criteria: { roeMin: 15 } },
     { label: '大盘股', criteria: { marketCapMin: 1000 } },
+    { label: '高分红', criteria: {} }, // 需要数据支持
     { label: '银行股', criteria: { industry: '银行' } },
+    { label: 'ETF', criteria: { industry: 'ETF' } },
   ];
 
-  const applyQuickFilter = (filter: Partial<FilterCriteria>) => {
-    setCriteria({ ...criteria, ...filter });
+  const applyQuickFilter = (filter: Partial<typeof criteria>) => {
+    setCriteria({ ...criteria, industry: '全部', ...filter });
   };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500">加载股票数据中...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* 快速筛选 */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {quickFilters.map(f => (
           <button
             key={f.label}
@@ -171,7 +191,7 @@ export function Screener() {
             <label className="block text-sm text-gray-600 mb-1">ROE最低</label>
             <input
               type="number"
-              placeholder="如 15%"
+              placeholder="如 15"
               value={criteria.roeMin ?? ''}
               onChange={e => setCriteria({ ...criteria, roeMin: e.target.value ? parseFloat(e.target.value) : null })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
@@ -213,49 +233,122 @@ export function Screener() {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PE</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PB</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROE</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">市值(亿)</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">市值</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">AI分析</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredStocks.map(stock => (
-              <tr key={stock.code} className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <div>
-                    <p className="font-medium text-gray-900">{stock.name}</p>
-                    <p className="text-xs text-gray-500">{stock.code}</p>
-                  </div>
+            {filteredStocks.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                  暂无符合条件的股票
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-600">{stock.industry}</td>
-                <td className="px-4 py-3 text-sm">
-                  <span className={stock.pe < 15 ? 'text-green-600' : stock.pe > 30 ? 'text-red-600' : 'text-gray-900'}>
-                    {stock.pe.toFixed(1)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-sm">
-                  <span className={stock.pb < 1 ? 'text-green-600' : stock.pb > 3 ? 'text-red-600' : 'text-gray-900'}>
-                    {stock.pb.toFixed(2)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-sm">
-                  <span className={stock.roe > 20 ? 'text-red-600 font-medium' : stock.roe > 10 ? 'text-gray-900' : 'text-gray-500'}>
-                    {stock.roe.toFixed(1)}%
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-900">{stock.marketCap}</td>
               </tr>
-            ))}
+            ) : (
+              filteredStocks.map(stock => (
+                <tr key={stock.code} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div>
+                      <p className="font-medium text-gray-900">{stock.name}</p>
+                      <p className="text-xs text-gray-500">{stock.code}</p>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{stock.industry}</td>
+                  <td className="px-4 py-3 text-sm">
+                    {stock.financial.pe ? (
+                      <span className={stock.financial.pe < 15 ? 'text-green-600' : stock.financial.pe > 30 ? 'text-red-600' : 'text-gray-900'}>
+                        {stock.financial.pe.toFixed(1)}
+                      </span>
+                    ) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {stock.financial.pb ? (
+                      <span className={stock.financial.pb < 1 ? 'text-green-600' : stock.financial.pb > 3 ? 'text-red-600' : 'text-gray-900'}>
+                        {stock.financial.pb.toFixed(2)}
+                      </span>
+                    ) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {stock.financial.roe ? (
+                      <span className={stock.financial.roe > 20 ? 'text-red-600 font-medium' : stock.financial.roe > 10 ? 'text-gray-900' : 'text-gray-500'}>
+                        {stock.financial.roe.toFixed(1)}%
+                      </span>
+                    ) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {stock.financial.marketCap ? `${stock.financial.marketCap}亿` : '-'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => setSelectedStock(stock)}
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      查看
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
-
-        {filteredStocks.length === 0 && (
-          <div className="p-8 text-center text-gray-500">
-            暂无符合条件的股票
-          </div>
-        )}
       </div>
 
+      {/* AI分析弹窗 */}
+      {selectedStock && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">{selectedStock.name}</h2>
+                <p className="text-white/80 text-sm">{selectedStock.code} · {selectedStock.industry}</p>
+              </div>
+              <button
+                onClick={() => setSelectedStock(null)}
+                className="text-white/80 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5">
+              {/* 财务指标 */}
+              <div className="grid grid-cols-4 gap-4 mb-4 text-center">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">PE</p>
+                  <p className="text-lg font-bold">{selectedStock.financial.pe || '-'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">PB</p>
+                  <p className="text-lg font-bold">{selectedStock.financial.pb || '-'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">ROE</p>
+                  <p className="text-lg font-bold">{selectedStock.financial.roe ? `${selectedStock.financial.roe}%` : '-'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">市值</p>
+                  <p className="text-lg font-bold">{selectedStock.financial.marketCap ? `${selectedStock.financial.marketCap}亿` : '-'}</p>
+                </div>
+              </div>
+
+              {/* AI分析 */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {selectedStock.analysis}
+                </p>
+              </div>
+
+              <p className="text-xs text-gray-400 mt-4 text-center">
+                ⚠️ 以上为数据分析摘要，仅供参考，不构成投资建议
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-gray-400 text-center">
-        数据仅供参考，实际投资请自行判断。PE&lt;15 或 PB&lt;1 标为绿色表示估值较低。
+        数据每周自动更新。PE&lt;15 或 PB&lt;1 标为绿色表示估值较低。分析由AI生成，仅供参考。
       </p>
     </div>
   );

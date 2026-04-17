@@ -1,0 +1,35 @@
+name: Generate Stock Analysis
+
+on:
+  schedule:
+    # 每周六上午9点运行（北京时间）
+    - cron: '0 1 * * 6'
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate stock data
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: node scripts/generate-stock-analysis.js
+
+      - name: Commit and push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add public/data/
+          git diff --quiet && git diff --staged --quiet || git commit -m "更新股票分析数据 - $(date '+%Y-%m-%d')"
+          git push
