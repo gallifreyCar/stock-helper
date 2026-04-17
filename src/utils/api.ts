@@ -112,14 +112,14 @@ export async function fetchStockQuotes(codes: string[]): Promise<StockQuote[]> {
   }
 }
 
-// 获取基金净值（天天基金）
+// 获取基金净值（天天基金）- UTF-8编码，无需转换
 export async function fetchFundNav(code: string): Promise<{
   nav: number;
   name: string;
   date: string;
 } | null> {
   try {
-    // 天天基金API - 更稳定的接口
+    // 天天基金API - UTF-8编码
     const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
     const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
       signal: AbortSignal.timeout(10000),
@@ -127,9 +127,8 @@ export async function fetchFundNav(code: string): Promise<{
 
     if (!response.ok) return null;
 
-    const buffer = await response.arrayBuffer();
-    const decoder = new TextDecoder('gbk');
-    const text = decoder.decode(buffer);
+    // 天天基金返回UTF-8，直接用text()解析
+    const text = await response.text();
 
     // 解析格式：jsonpgz({"fundcode":"...","name":"...","jzrq":"...","dwjz":"..."})
     const jsonMatch = text.match(/jsonpgz\((\{[^}]+\})\)/);
