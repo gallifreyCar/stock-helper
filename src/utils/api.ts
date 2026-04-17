@@ -1,35 +1,29 @@
-// API 调用封装 - 使用多个备用代理
+// API 调用封装 - 使用腾讯财经API（更稳定）
 
 import type { StockQuote } from '../types';
 import { formatStockCode } from '../types';
 
-const SINA_API_BASE = 'https://hq.sinajs.cn/list=';
+const TENCENT_API_BASE = 'https://qt.gtimg.cn/q=';
 
-// 代理列表（按优先级）
-const PROXIES = [
-  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url: string) => url, // 直接访问（某些情况下可行）
-];
-
-// 解析新浪财经返回的数据
-function parseSinaData(data: string, code: string): StockQuote | null {
+// 解析腾讯财经返回的数据
+function parseTencentData(data: string, code: string): StockQuote | null {
+  // 腾讯格式：v_sh513130="1~国泰纳斯达克100ETF~513130~..."
   const match = data.match(/="([^"]+)"/);
   if (!match || match[1] === '') return null;
 
-  const parts = match[1].split(',');
-  if (parts.length < 32) return null;
+  const parts = match[1].split('~');
+  if (parts.length < 45) return null;
 
-  const name = parts[0];
-  const open = parseFloat(parts[1]) || 0;
-  const preClose = parseFloat(parts[2]) || 0;
-  const price = parseFloat(parts[3]) || 0;
-  const high = parseFloat(parts[4]) || 0;
-  const low = parseFloat(parts[5]) || 0;
-  const volume = parseFloat(parts[8]) || 0;
-  const amount = parseFloat(parts[9]) || 0;
-  const date = parts[30];
-  const time = parts[31];
+  // 腾讯API字段顺序
+  const name = parts[1];          // 名称
+  const price = parseFloat(parts[3]) || 0;    // 当前价格
+  const preClose = parseFloat(parts[4]) || 0; // 昨收
+  const open = parseFloat(parts[5]) || 0;     // 今开
+  const high = parseFloat(parts[33]) || 0;    // 最高
+  const low = parseFloat(parts[34]) || 0;     // 最低
+  const time = parts[35] || '';               // 时间
+  const volume = parseFloat(parts[36]) || 0;  // 成交量
+  const amount = parseFloat(parts[37]) || 0;  // 成交额
 
   const change = price - preClose;
   const changePercent = preClose > 0 ? (change / preClose) * 100 : 0;
@@ -46,21 +40,26 @@ function parseSinaData(data: string, code: string): StockQuote | null {
     amount,
     change,
     changePercent,
-    time: `${date} ${time}`,
+    time,
   };
 }
 
-// 带备用代理的fetch
+// 带代理的fetch
 async function fetchWithProxy(url: string): Promise<string> {
-  for (const proxy of PROXIES) {
+  const proxies = [
+    (u: string) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    (u: string) => u, // 直接尝试（部分网络可行）
+  ];
+
+  for (const proxy of proxies) {
     try {
       const proxyUrl = proxy(url);
       const response = await fetch(proxyUrl, {
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(8000),
       });
       if (response.ok) {
         const text = await response.text();
-        if (text && !text.includes('error') && !text.includes('timeout')) {
+        if (text && !text.includes('error')) {
           return text;
         }
       }
@@ -75,9 +74,11 @@ async function fetchWithProxy(url: string): Promise<string> {
 export async function fetchStockQuote(code: string): Promise<StockQuote | null> {
   try {
     const fullCode = formatStockCode(code);
-    const url = `${SINA_API_BASE}${fullCode}`;
+    // 腾讯API前缀：sh/sz
+    const prefix = fullCode.startsWith('sh') ? 'sh' : 'sz';
+    const url = `${TENCENT_API_BASE}${prefix}_${code}`;
     const text = await fetchWithProxy(url);
-    return parseSinaData(text, code);
+    return parseTencentData(text, code);
   } catch (e) {
     console.error(`Failed to fetch stock quote for ${code}:`, e);
     return null;
@@ -89,18 +90,22 @@ export async function fetchStockQuotes(codes: string[]): Promise<StockQuote[]> {
   if (codes.length === 0) return [];
 
   try {
-    const fullCodes = codes.map(formatStockCode);
-    const url = `${SINA_API_BASE}${fullCodes.join(',')}`;
+    const queryCodes = codes.map(code => {
+      const fullCode = formatStockCode(code);
+      const prefix = fullCode.startsWith('sh') ? 'sh' : 'sz';
+      return `${prefix}_${code}`;
+    }).join(',');
+
+    const url = `${TENCENT_API_BASE}${queryCodes}`;
     const text = await fetchWithProxy(url);
 
-    const lines = text.split('\n').filter(line => line.trim());
+    // 腾讯返回格式：每行一个股票
     const quotes: StockQuote[] = [];
-
-    for (const line of lines) {
-      const codeMatch = line.match(/hq_str_(sh|sz)(\d+)/);
-      if (codeMatch) {
-        const code = codeMatch[2];
-        const quote = parseSinaData(line, code);
+    for (const code of codes) {
+      const regex = new RegExp(`v_${formatStockCode(code)}="([^"]*)"`);
+      const match = text.match(regex);
+      if (match) {
+        const quote = parseTencentData(`="${match[1]}"`, code);
         if (quote) quotes.push(quote);
       }
     }
@@ -119,8 +124,8 @@ export async function fetchFundNav(code: string): Promise<{
   date: string;
 } | null> {
   try {
-    // 天天基金API：更简单的方式获取净值
-    const url = `https://fundgz.1234567.com.cn/js/${code}.js`;
+    // 天天基金API - 更稳定的接口
+    const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
     const text = await fetchWithProxy(url);
 
     // 解析格式：jsonpgz({"fundcode":"...","name":"...","jzrq":"...","dwjz":"..."})
@@ -134,9 +139,9 @@ export async function fetchFundNav(code: string): Promise<{
       };
     }
 
-    // 备用解析方式
-    const navMatch = text.match(/dwjz:"([^"]+)"/);
+    // 备用解析
     const nameMatch = text.match(/name:"([^"]+)"/);
+    const navMatch = text.match(/dwjz:"([^"]+)"/);
     if (navMatch) {
       return {
         nav: parseFloat(navMatch[1]) || 0,
