@@ -35,6 +35,7 @@ export interface FundTransaction {
   nav: number;                // 成交净值
   shares: number;             // 份额
   amount: number;             // 金额
+  fee: number;                // 手续费（申购费/赎回费）
 }
 
 // 计算后的持仓汇总
@@ -235,10 +236,10 @@ export function calculateFundPositions(transactions: FundTransaction[]): FundPos
     for (const tx of sorted) {
       if (tx.type === 'buy') {
         totalShares += tx.shares;
-        totalCost += tx.amount;
+        totalCost += tx.amount + (tx.fee || 0);  // 申购费计入成本
       } else {
         const avgNavBeforeSell = totalShares > 0 ? totalCost / totalShares : tx.nav;
-        const sellRevenue = tx.amount;
+        const sellRevenue = tx.amount - (tx.fee || 0);  // 赎回费扣除
         const costOfSold = avgNavBeforeSell * tx.shares;
 
         realizedProfit += sellRevenue - costOfSold;

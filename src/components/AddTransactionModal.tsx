@@ -35,6 +35,7 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
   const [nav, setNav] = useState('');
   const [shares, setShares] = useState('');
   const [fundAmount, setFundAmount] = useState('');
+  const [fundFee, setFundFee] = useState('0');
   const [fundInputMode, setFundInputMode] = useState<'amount' | 'shares'>('amount');
 
   // 初始化时如果有代码就搜索
@@ -138,6 +139,7 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
         nav: parseFloat(nav),
         shares: parseFloat(shares),
         amount: parseFloat(fundAmount) || parseFloat(nav) * parseFloat(shares),
+        fee: parseFloat(fundFee) || 0,
       };
       onSave(tx, 'fund');
     }
@@ -351,6 +353,24 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">份</span>
                   </div>
                 </div>
+              </div>
+
+              {/* 手续费 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {txType === 'buy' ? '申购费' : '赎回费'}
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={fundFee}
+                  onChange={e => setFundFee(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  {txType === 'buy' ? '申购费率通常为0.1%-1.5%' : '赎回费率根据持有时间递减'}
+                </p>
               </div>
             </>
           )}

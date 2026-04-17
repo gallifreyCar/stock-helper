@@ -152,7 +152,7 @@ export function TransactionHistory({
                       {type === 'stock' ? (tx as StockTransaction).quantity : (tx as FundTransaction).shares.toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-sm">{formatMoney(tx.amount)}</td>
-                    <td className="px-4 py-3 text-sm">{type === 'stock' ? formatMoney((tx as StockTransaction).fee) : '-'}</td>
+                    <td className="px-4 py-3 text-sm">{formatMoney(tx.fee || 0)}</td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => onDeleteTransaction(tx.id)}
