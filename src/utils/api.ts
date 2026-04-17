@@ -1,14 +1,21 @@
-// API 调用封装
+// API 调用封装 - 使用多个备用代理
 
 import type { StockQuote } from '../types';
 import { formatStockCode } from '../types';
 
 const SINA_API_BASE = 'https://hq.sinajs.cn/list=';
 
+// 代理列表（按优先级）
+const PROXIES = [
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => url, // 直接访问（某些情况下可行）
+];
+
 // 解析新浪财经返回的数据
 function parseSinaData(data: string, code: string): StockQuote | null {
   const match = data.match(/="([^"]+)"/);
-  if (!match) return null;
+  if (!match || match[1] === '') return null;
 
   const parts = match[1].split(',');
   if (parts.length < 32) return null;
@@ -19,8 +26,8 @@ function parseSinaData(data: string, code: string): StockQuote | null {
   const price = parseFloat(parts[3]) || 0;
   const high = parseFloat(parts[4]) || 0;
   const low = parseFloat(parts[5]) || 0;
-  const volume = parseFloat(parts[8]) || 0; // 成交量（手）
-  const amount = parseFloat(parts[9]) || 0; // 成交额（万元）
+  const volume = parseFloat(parts[8]) || 0;
+  const amount = parseFloat(parts[9]) || 0;
   const date = parts[30];
   const time = parts[31];
 
@@ -43,18 +50,33 @@ function parseSinaData(data: string, code: string): StockQuote | null {
   };
 }
 
+// 带备用代理的fetch
+async function fetchWithProxy(url: string): Promise<string> {
+  for (const proxy of PROXIES) {
+    try {
+      const proxyUrl = proxy(url);
+      const response = await fetch(proxyUrl, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        const text = await response.text();
+        if (text && !text.includes('error') && !text.includes('timeout')) {
+          return text;
+        }
+      }
+    } catch (e) {
+      console.warn(`Proxy failed: ${proxy(url)}`);
+    }
+  }
+  throw new Error('All proxies failed');
+}
+
 // 获取单只股票行情
 export async function fetchStockQuote(code: string): Promise<StockQuote | null> {
   try {
     const fullCode = formatStockCode(code);
     const url = `${SINA_API_BASE}${fullCode}`;
-
-    // 使用代理解决跨域问题
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-
-    const response = await fetch(proxyUrl);
-    const text = await response.text();
-
+    const text = await fetchWithProxy(url);
     return parseSinaData(text, code);
   } catch (e) {
     console.error(`Failed to fetch stock quote for ${code}:`, e);
@@ -69,12 +91,8 @@ export async function fetchStockQuotes(codes: string[]): Promise<StockQuote[]> {
   try {
     const fullCodes = codes.map(formatStockCode);
     const url = `${SINA_API_BASE}${fullCodes.join(',')}`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const text = await fetchWithProxy(url);
 
-    const response = await fetch(proxyUrl);
-    const text = await response.text();
-
-    // 新浪返回多行，每行一个股票
     const lines = text.split('\n').filter(line => line.trim());
     const quotes: StockQuote[] = [];
 
@@ -101,28 +119,30 @@ export async function fetchFundNav(code: string): Promise<{
   date: string;
 } | null> {
   try {
-    const url = `https://fund.eastmoney.com/pingzhongdata/${code}.js`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    // 天天基金API：更简单的方式获取净值
+    const url = `https://fundgz.1234567.com.cn/js/${code}.js`;
+    const text = await fetchWithProxy(url);
 
-    const response = await fetch(proxyUrl);
-    const text = await response.text();
+    // 解析格式：jsonpgz({"fundcode":"...","name":"...","jzrq":"...","dwjz":"..."})
+    const jsonMatch = text.match(/jsonpgz\((\{[^}]+\})\)/);
+    if (jsonMatch) {
+      const data = JSON.parse(jsonMatch[1]);
+      return {
+        nav: parseFloat(data.dwjz) || 0,
+        name: data.name || '',
+        date: data.jzrq || '',
+      };
+    }
 
-    // 解析基金名称
-    const nameMatch = text.match(/var fS_name\s*=\s*"([^"]+)"/);
-    const name = nameMatch ? nameMatch[1] : '';
-
-    // 解析净值数据
-    const navMatch = text.match(/var Data_netWorthTrend\s*=\s*(\[[^\]]+\])/);
+    // 备用解析方式
+    const navMatch = text.match(/dwjz:"([^"]+)"/);
+    const nameMatch = text.match(/name:"([^"]+)"/);
     if (navMatch) {
-      const navData = JSON.parse(navMatch[1]);
-      const latest = navData[navData.length - 1];
-      if (latest) {
-        return {
-          nav: latest.y,
-          name,
-          date: latest.x.toString(),
-        };
-      }
+      return {
+        nav: parseFloat(navMatch[1]) || 0,
+        name: nameMatch ? nameMatch[1] : '',
+        date: '',
+      };
     }
 
     return null;
@@ -140,7 +160,6 @@ export async function fetchFundNavs(codes: string[]): Promise<Map<string, {
 }>> {
   const result = new Map();
 
-  // 基金API不支持批量，逐个获取
   for (const code of codes) {
     const data = await fetchFundNav(code);
     if (data) {

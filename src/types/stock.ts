@@ -48,11 +48,18 @@ export interface StockAnalysis {
   };
 }
 
-// 股票代码格式化
+// 股票代码格式化（支持股票、ETF、基金代码）
 export function formatStockCode(code: string): string {
-  if (code.startsWith('6')) return `sh${code}`;
-  if (code.startsWith('0') || code.startsWith('3')) return `sz${code}`;
-  return code;
+  // 上海市场：6开头股票，51/58开头ETF，50开头ETF
+  if (code.startsWith('6') || code.startsWith('51') || code.startsWith('58') || code.startsWith('50')) {
+    return `sh${code}`;
+  }
+  // 深圳市场：0/3开头股票，15/16开头ETF
+  if (code.startsWith('0') || code.startsWith('3') || code.startsWith('15') || code.startsWith('16')) {
+    return `sz${code}`;
+  }
+  // 默认根据首位判断
+  return code.startsWith('6') || code.startsWith('5') ? `sh${code}` : `sz${code}`;
 }
 
 export function parseStockCode(fullCode: string): { market: 'sh' | 'sz', code: string } {
