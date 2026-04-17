@@ -1,7 +1,8 @@
 // LocalStorage 存储 hook
 
 import { useState, useEffect, useCallback } from 'react';
-import { StorageData, defaultStorageData } from '../types';
+import type { StorageData } from '../types';
+import { defaultStorageData } from '../types';
 
 const STORAGE_KEY = 'stock-helper-data';
 

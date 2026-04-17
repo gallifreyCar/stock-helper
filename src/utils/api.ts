@@ -1,6 +1,7 @@
 // API 调用封装
 
-import { StockQuote, formatStockCode } from '../types';
+import type { StockQuote } from '../types';
+import { formatStockCode } from '../types';
 
 const SINA_API_BASE = 'https://hq.sinajs.cn/list=';
 

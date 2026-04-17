@@ -1,6 +1,6 @@
 // 收益计算工具
 
-import { StockPosition, FundPosition, StockQuote, FundQuote } from '../types';
+import type { StockPosition, FundPosition, StockQuote } from '../types';
 
 // 计算股票持仓价值
 export function calculateStockPositionValue(

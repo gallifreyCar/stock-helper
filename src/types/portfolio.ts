@@ -1,7 +1,7 @@
 // 持仓类型定义
 
-import { Stock, StockQuote, StockAnalysis } from './stock';
-import { Fund, FundQuote } from './fund';
+import type { StockQuote } from './stock';
+import type { FundQuote } from './fund';
 
 // 账户分组类型
 export type AccountType = 'long-term' | 'short-term' | 'fund';
