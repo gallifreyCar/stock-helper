@@ -1,5 +1,5 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout, Dashboard, Portfolio, Screener, Alerts, Settings } from './components';
 import { LoginPage, RegisterPage, DataMigration, SupabaseConfig } from './components/auth';
@@ -88,9 +88,10 @@ function DataMigrationWrapper({
 }) {
   const { user } = useAuth();
   const [migrating, setMigrating] = useState(false);
+  const [migrated, setMigrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleMigrate = useCallback(async () => {
+  const handleMigrate = async () => {
     if (!user?.id) {
       setError('用户未登录');
       return;
@@ -109,22 +110,24 @@ function DataMigrationWrapper({
     try {
       // 同步账户
       for (const account of localData.accounts) {
-        await supabase.from('accounts').insert({
+        const { error: accError } = await supabase.from('accounts').insert({
           user_id: user.id,
           name: account.name,
           type: account.type,
         });
+        if (accError) console.error('Account insert error:', accError);
       }
 
       // 同步股票交易（需要先获取账户的云端 ID）
-      const { data: cloudAccounts } = await supabase
+      const { data: cloudAccounts, error: fetchError } = await supabase
         .from('accounts')
         .select('id, name')
         .eq('user_id', user.id);
 
+      if (fetchError) console.error('Fetch accounts error:', fetchError);
+
       const accountMap: Record<string, string> = {};
       (cloudAccounts || []).forEach(acc => {
-        // 根据名称匹配本地账户到云端账户
         const localAcc = localData.accounts.find(a => a.name === acc.name);
         if (localAcc) {
           accountMap[localAcc.id] = acc.id;
@@ -134,7 +137,7 @@ function DataMigrationWrapper({
       for (const tx of localData.stockTransactions) {
         const cloudAccountId = accountMap[tx.accountId] || Object.values(accountMap)[0];
         if (cloudAccountId) {
-          await supabase.from('stock_transactions').insert({
+          const { error: txError } = await supabase.from('stock_transactions').insert({
             user_id: user.id,
             account_id: cloudAccountId,
             stock_code: tx.stockCode,
@@ -146,6 +149,7 @@ function DataMigrationWrapper({
             fee: tx.fee,
             amount: tx.amount,
           });
+          if (txError) console.error('Stock tx error:', txError);
         }
       }
 
@@ -153,7 +157,7 @@ function DataMigrationWrapper({
       for (const tx of localData.fundTransactions) {
         const cloudAccountId = accountMap[tx.accountId] || Object.values(accountMap)[0];
         if (cloudAccountId) {
-          await supabase.from('fund_transactions').insert({
+          const { error: txError } = await supabase.from('fund_transactions').insert({
             user_id: user.id,
             account_id: cloudAccountId,
             fund_code: tx.fundCode,
@@ -165,12 +169,13 @@ function DataMigrationWrapper({
             amount: tx.amount,
             fee: tx.fee,
           });
+          if (txError) console.error('Fund tx error:', txError);
         }
       }
 
       // 同步价格提醒
       for (const alert of localData.alerts) {
-        await supabase.from('price_alerts').insert({
+        const { error: alertError } = await supabase.from('price_alerts').insert({
           user_id: user.id,
           type: alert.type,
           code: alert.code,
@@ -180,11 +185,12 @@ function DataMigrationWrapper({
           loss_price: alert.lossPrice,
           enabled: alert.enabled,
         });
+        if (alertError) console.error('Alert error:', alertError);
       }
 
       // 同步设置
       if (localData.settings) {
-        await supabase.from('user_settings').upsert({
+        const { error: settingsError } = await supabase.from('user_settings').upsert({
           user_id: user.id,
           refresh_interval: localData.settings.refreshInterval,
           show_notification: localData.settings.showNotification,
@@ -193,33 +199,37 @@ function DataMigrationWrapper({
           ai_base_url: localData.settings.aiConfig?.baseUrl,
           ai_model: localData.settings.aiConfig?.model,
         });
+        if (settingsError) console.error('Settings error:', settingsError);
       }
 
       // 清除本地数据
       localStorage.removeItem('stock-helper-data');
       localStorage.removeItem('stock-helper-migration-pending');
 
-      onComplete();
+      // 显示成功状态
+      setMigrated(true);
+      setMigrating(false);
     } catch (e) {
       console.error('Migration failed:', e);
       setError((e as Error).message || '迁移失败，请重试');
+      setMigrating(false);
     }
+  };
 
-    setMigrating(false);
-  }, [user?.id, localData, onComplete]);
-
-  // 传递真实的迁移函数给 DataMigration
-  const migrateWrapper = async () => {
-    await handleMigrate();
+  // 迁移成功后的处理
+  const handleComplete = () => {
+    onComplete();
   };
 
   return (
     <DataMigration
       localData={localData}
-      onMigrate={migrateWrapper}
+      onMigrate={handleMigrate}
       onSkip={onSkip}
       migrating={migrating}
+      migrated={migrated}
       error={error}
+      onComplete={handleComplete}
     />
   );
 }

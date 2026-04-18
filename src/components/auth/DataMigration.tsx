@@ -1,6 +1,5 @@
 // 数据迁移组件 - 将 localStorage 数据迁移到 Supabase
 
-import { useState } from 'react';
 import { Upload, Cloud, Check, Loader2, X } from 'lucide-react';
 import type { StorageData } from '../../types';
 
@@ -9,12 +8,12 @@ interface DataMigrationProps {
   onMigrate: (data: StorageData) => Promise<void>;
   onSkip: () => void;
   migrating?: boolean;
+  migrated?: boolean;
   error?: string | null;
+  onComplete?: () => void;
 }
 
-export function DataMigration({ localData, onMigrate, onSkip, migrating = false, error }: DataMigrationProps) {
-  const [migrated, setMigrated] = useState(false);
-
+export function DataMigration({ localData, onMigrate, onSkip, migrating = false, migrated = false, error, onComplete }: DataMigrationProps) {
   const hasLocalData = localData &&
     (localData.accounts.length > 0 ||
      localData.stockTransactions.length > 0 ||
@@ -27,9 +26,9 @@ export function DataMigration({ localData, onMigrate, onSkip, migrating = false,
 
   const handleMigrate = async () => {
     await onMigrate(localData);
-    setMigrated(true);
   };
 
+  // 迁移成功页面
   if (migrated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -40,7 +39,7 @@ export function DataMigration({ localData, onMigrate, onSkip, migrating = false,
           <h2 className="text-xl font-bold text-gray-900 mb-2">数据迁移成功！</h2>
           <p className="text-gray-600">您的本地数据已同步到云端</p>
           <button
-            onClick={onSkip}
+            onClick={onComplete || onSkip}
             className="mt-6 w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
           >
             开始使用
