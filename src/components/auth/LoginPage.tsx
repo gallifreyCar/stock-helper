@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { TrendingUp, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { TrendingUp, Mail, Lock, AlertCircle, Loader2, Database } from 'lucide-react';
 
 interface LoginPageProps {
   onSwitchToRegister: () => void;
   onResetPassword: () => void;
+  onSwitchToConfig: () => void;
 }
 
-export function LoginPage({ onSwitchToRegister, onResetPassword }: LoginPageProps) {
+export function LoginPage({ onSwitchToRegister, onResetPassword, onSwitchToConfig }: LoginPageProps) {
   const { signIn, switchToOffline } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -111,6 +112,17 @@ export function LoginPage({ onSwitchToRegister, onResetPassword }: LoginPageProp
             继续离线使用 →
           </button>
           <p className="text-xs text-gray-400 mt-2">离线模式下数据仅保存在本地浏览器</p>
+        </div>
+
+        {/* 配置自己的 Supabase */}
+        <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+          <button
+            onClick={onSwitchToConfig}
+            className="text-gray-500 hover:text-blue-600 text-sm flex items-center gap-1 mx-auto"
+          >
+            <Database className="w-4 h-4" />
+            配置自己的云端数据库
+          </button>
         </div>
       </div>
     </div>

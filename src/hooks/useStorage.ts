@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { getSupabaseClient } from '../lib/supabase';
 import type { StorageData } from '../types';
 import {
   defaultStorageData,
@@ -146,6 +146,7 @@ export function useStorage() {
 
   // 从云端加载数据
   const loadFromCloud = useCallback(async (userId: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase) return;
 
     setLoading(true);
@@ -230,6 +231,7 @@ export function useStorage() {
 
   // 同步单个账户到云端
   const syncAccountToCloud = useCallback(async (account: Account, userId: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') return account.id;
 
     const existingId = idMapping.accounts[account.id];
@@ -264,6 +266,7 @@ export function useStorage() {
 
   // 同步单个股票交易到云端
   const syncStockTxToCloud = useCallback(async (tx: StockTransaction, userId: string, accountId?: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') return tx.id;
 
     const cloudAccountId = accountId || idMapping.accounts[tx.accountId] || tx.accountId;
@@ -315,6 +318,7 @@ export function useStorage() {
 
   // 同步单个基金交易到云端
   const syncFundTxToCloud = useCallback(async (tx: FundTransaction, userId: string, accountId?: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') return tx.id;
 
     const cloudAccountId = accountId || idMapping.accounts[tx.accountId] || tx.accountId;
@@ -366,6 +370,7 @@ export function useStorage() {
 
   // 同步单个价格提醒到云端
   const syncAlertToCloud = useCallback(async (alert: PriceAlert, userId: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') return alert.id;
 
     const existingId = idMapping.alerts[alert.id];
@@ -414,6 +419,7 @@ export function useStorage() {
 
   // 同步设置到云端
   const syncSettingsToCloud = useCallback(async (settings: Settings, userId: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') return;
 
     await supabase
@@ -436,6 +442,7 @@ export function useStorage() {
     setData(newData);
     setSyncStatus('pending');
 
+    const supabase = getSupabaseClient();
     if (authMode === 'online' && user?.id && supabase) {
       try {
         // 先同步账户，获取新的 ID 映射
@@ -481,6 +488,7 @@ export function useStorage() {
 
   // 删除账户及关联数据
   const deleteAccount = useCallback(async (accountId: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') {
       const newData = {
         accounts: data.accounts.filter(a => a.id !== accountId),
@@ -506,6 +514,7 @@ export function useStorage() {
 
   // 删除交易记录
   const deleteStockTx = useCallback(async (txId: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') {
       setData({ ...data, stockTransactions: data.stockTransactions.filter(t => t.id !== txId) });
       return;
@@ -519,6 +528,7 @@ export function useStorage() {
   }, [data, authMode, idMapping]);
 
   const deleteFundTx = useCallback(async (txId: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') {
       setData({ ...data, fundTransactions: data.fundTransactions.filter(t => t.id !== txId) });
       return;
@@ -533,6 +543,7 @@ export function useStorage() {
 
   // 删除价格提醒
   const deleteAlert = useCallback(async (alertId: string) => {
+    const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') {
       setData({ ...data, alerts: data.alerts.filter(a => a.id !== alertId) });
       return;
@@ -564,6 +575,7 @@ export function useStorage() {
       const migrated = migrateData(imported);
       setData(migrated);
 
+      const supabase = getSupabaseClient();
       if (authMode === 'online' && user?.id && supabase) {
         setSyncStatus('pending');
         for (const account of migrated.accounts) {
@@ -593,6 +605,7 @@ export function useStorage() {
     setData(defaultStorageData);
     setIdMapping(getEmptyMapping());
 
+    const supabase = getSupabaseClient();
     if (authMode === 'online' && user?.id && supabase) {
       await supabase.from('accounts').delete().eq('user_id', user.id);
       await supabase.from('stock_transactions').delete().eq('user_id', user.id);

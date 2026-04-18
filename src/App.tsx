@@ -2,12 +2,12 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout, Dashboard, Portfolio, Screener, Alerts, Settings } from './components';
-import { LoginPage, RegisterPage, DataMigration } from './components/auth';
+import { LoginPage, RegisterPage, DataMigration, SupabaseConfig } from './components/auth';
 import type { StorageData } from './types';
 
 // 认证保护组件
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, authMode } = useAuth();
+  const { user, loading, authMode, recheckConfig } = useAuth();
   const [showMigration, setShowMigration] = useState(false);
   const [localData, setLocalData] = useState<StorageData | null>(null);
 
@@ -39,6 +39,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // 未配置时显示配置页面
+  if (authMode === 'unconfigured') {
+    return (
+      <SupabaseConfig
+        onConfigured={() => {
+          recheckConfig();
+        }}
+        onSkip={() => {}}
+      />
+    );
+  }
+
   // 离线模式直接进入应用
   if (authMode === 'offline') {
     return <>{children}</>;
@@ -51,7 +63,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // 显示数据迁移提示
   if (showMigration && localData) {
-    // 动态获取 useSupabaseStorage 的 migrateLocalData
     return (
       <DataMigrationWrapper
         localData={localData}
@@ -75,7 +86,6 @@ function DataMigrationWrapper({
   onSkip: () => void;
 }) {
   const handleMigrate = async () => {
-    // 简化处理：将本地数据标记为待迁移，在 useStorage 中处理
     localStorage.setItem('stock-helper-migration-pending', JSON.stringify(localData));
     onComplete();
   };
@@ -91,11 +101,20 @@ function DataMigrationWrapper({
 
 // 认证页面路由
 function AuthRoutes() {
-  const [authPage, setAuthPage] = useState<'login' | 'register' | 'reset'>('login');
+  const [authPage, setAuthPage] = useState<'login' | 'register' | 'reset' | 'config'>('login');
   const { user } = useAuth();
 
   if (user) {
     return <Navigate to="/" replace />;
+  }
+
+  if (authPage === 'config') {
+    return (
+      <SupabaseConfig
+        onConfigured={() => setAuthPage('login')}
+        onSkip={() => setAuthPage('login')}
+      />
+    );
   }
 
   if (authPage === 'login') {
@@ -103,6 +122,7 @@ function AuthRoutes() {
       <LoginPage
         onSwitchToRegister={() => setAuthPage('register')}
         onResetPassword={() => setAuthPage('reset')}
+        onSwitchToConfig={() => setAuthPage('config')}
       />
     );
   }
@@ -111,13 +131,10 @@ function AuthRoutes() {
     return <RegisterPage onSwitchToLogin={() => setAuthPage('login')} />;
   }
 
-  // 重置密码页（简化版）
-  return (
-    <ResetPasswordPage onBack={() => setAuthPage('login')} />
-  );
+  return <ResetPasswordPage onBack={() => setAuthPage('login')} />;
 }
 
-// 重置密码页面（简化版）
+// 重置密码页面
 function ResetPasswordPage({ onBack }: { onBack: () => void }) {
   const { resetPassword } = useAuth();
   const [email, setEmail] = useState('');
@@ -180,10 +197,7 @@ function App() {
     <AuthProvider>
       <HashRouter>
         <Routes>
-          {/* 认证路由 */}
           <Route path="/login" element={<AuthRoutes />} />
-
-          {/* 主应用（需要认证保护） */}
           <Route path="/*" element={
             <AuthGuard>
               <Layout>
