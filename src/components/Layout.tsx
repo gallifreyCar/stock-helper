@@ -9,7 +9,12 @@ import {
   Bell,
   Settings,
   TrendingUp,
+  Cloud,
+  CloudOff,
+  LogOut,
+  User,
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -25,6 +30,7 @@ const navItems = [
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const { user, authMode, signOut } = useAuth();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -35,7 +41,34 @@ export function Layout({ children }: LayoutProps) {
             <TrendingUp className="w-8 h-8 text-blue-600" />
             <span className="text-xl font-bold text-gray-900">投资助手</span>
           </Link>
-          <span className="text-sm text-gray-500">A股 · 基金</span>
+
+          <div className="flex items-center gap-4">
+            {/* 用户信息 / 同步状态 */}
+            {authMode === 'online' && user ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1 text-green-600 text-sm">
+                  <Cloud className="w-4 h-4" />
+                  <span>云端同步</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-700">
+                  <User className="w-4 h-4" />
+                  <span className="text-sm">{user.email}</span>
+                </div>
+                <button
+                  onClick={signOut}
+                  className="text-gray-500 hover:text-red-600"
+                  title="登出"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-gray-500 text-sm">
+                <CloudOff className="w-4 h-4" />
+                <span>离线模式</span>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

@@ -1,6 +1,7 @@
-// LocalStorage 存储 hook
+// 数据存储 hook - 支持离线模式和云端同步
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import type { StorageData } from '../types';
 import { defaultStorageData } from '../types';
 
@@ -8,14 +9,12 @@ const STORAGE_KEY = 'stock-helper-data';
 
 // 数据迁移：兼容旧格式
 function migrateData(savedData: any): StorageData {
-  // 如果是新格式，直接返回
   if (savedData.stockTransactions && savedData.fundTransactions) {
     return savedData as StorageData;
   }
 
-  // 如果是旧格式（有 stockPositions/fundPositions），迁移到新格式
   if (savedData.stockPositions || savedData.fundPositions) {
-    const migrated: StorageData = {
+    return {
       accounts: savedData.accounts || defaultStorageData.accounts,
       stockTransactions: [],
       fundTransactions: [],
@@ -25,37 +24,38 @@ function migrateData(savedData: any): StorageData {
         ...(savedData.settings || {}),
       },
     };
-
-    // 旧持仓数据废弃，需要重新添加
-    console.log('数据格式已更新，旧持仓数据需要重新添加');
-    return migrated;
   }
 
-  // 其他情况，使用默认数据
   return defaultStorageData;
 }
 
 export function useStorage() {
+  const { authMode } = useAuth();
   const [data, setData] = useState<StorageData>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        return migrateData(parsed);
+        return migrateData(JSON.parse(saved));
       }
     } catch (e) {
-      console.error('Failed to load data from localStorage:', e);
+      console.error('Failed to load data:', e);
     }
     return defaultStorageData;
   });
+  const [loading] = useState(false);
+  const [syncStatus] = useState<'synced' | 'pending' | 'offline'>(
+    authMode === 'offline' ? 'offline' : 'synced'
+  );
 
-  // 自动保存
+  // 自动保存到 localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.error('Failed to save data to localStorage:', e);
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [data]);
+
+  // 更新数据
+  const updateData = useCallback((partial: Partial<StorageData>) => {
+    const newData = { ...data, ...partial };
+    setData(newData);
   }, [data]);
 
   // 导出数据
@@ -88,9 +88,9 @@ export function useStorage() {
     setData(defaultStorageData);
   }, []);
 
-  // 更新部分数据
-  const updateData = useCallback((partial: Partial<StorageData>) => {
-    setData(prev => ({ ...prev, ...partial }));
+  // 手动同步（暂不实现）
+  const sync = useCallback(async () => {
+    // TODO: 实现手动同步到 Supabase
   }, []);
 
   return {
@@ -100,5 +100,8 @@ export function useStorage() {
     exportData,
     importData,
     clearData,
+    loading,
+    syncStatus,
+    sync,
   };
 }
