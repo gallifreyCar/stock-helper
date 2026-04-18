@@ -9,11 +9,10 @@ import {
 } from '../../lib/supabase';
 
 interface SupabaseConfigProps {
-  onConfigured: () => void;
   onSkip: () => void;
 }
 
-export function SupabaseConfig({ onConfigured, onSkip }: SupabaseConfigProps) {
+export function SupabaseConfig({ onSkip }: SupabaseConfigProps) {
   const currentUrl = getSupabaseUrl();
   const [url, setUrl] = useState(currentUrl || '');
   const [key, setKey] = useState('');
@@ -58,10 +57,11 @@ export function SupabaseConfig({ onConfigured, onSkip }: SupabaseConfigProps) {
       if (response.ok) {
         // 连接成功，保存配置
         saveSupabaseConfig(url, key);
-        setSuccess('✅ 连接成功！配置已保存');
+        setSuccess('✅ 连接成功！正在跳转...');
+        // 刷新页面重新初始化 Supabase 客户端
         setTimeout(() => {
-          onConfigured();
-        }, 1000);
+          window.location.href = window.location.pathname + '#/login';
+        }, 500);
       } else if (response.status === 401) {
         // 401 说明 key 无效
         setError('API Key 无效，请检查是否为正确的 anon key');
@@ -70,10 +70,10 @@ export function SupabaseConfig({ onConfigured, onSkip }: SupabaseConfigProps) {
         setError('连接成功，但数据库表未创建。请在 Supabase 中运行迁移创建表。');
         // 还是保存配置，让用户继续
         saveSupabaseConfig(url, key);
-        setSuccess('配置已保存（但数据库表需要创建）');
+        setSuccess('配置已保存，正在跳转...');
         setTimeout(() => {
-          onConfigured();
-        }, 2000);
+          window.location.href = window.location.pathname + '#/login';
+        }, 1500);
       } else {
         setError(`连接失败: HTTP ${response.status}`);
       }

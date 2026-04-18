@@ -9,7 +9,7 @@ import { getSupabaseUrl, clearSupabaseConfig } from '../lib/supabase';
 
 export function Settings() {
   const { data, updateData, exportData, importData, clearData } = useStorage();
-  const { authMode, recheckConfig } = useAuth();
+  const { authMode } = useAuth();
   const supabaseUrl = getSupabaseUrl();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showKey, setShowKey] = useState(false);
@@ -119,7 +119,8 @@ export function Settings() {
                 onClick={() => {
                   clearSupabaseConfig();
                   localStorage.removeItem('stock-helper-auth-mode');
-                  recheckConfig();
+                  // 刷新页面回到配置流程
+                  window.location.reload();
                 }}
                 className="mt-3 text-sm text-red-600 hover:underline flex items-center gap-1"
               >
@@ -133,7 +134,8 @@ export function Settings() {
               <button
                 onClick={() => {
                   localStorage.removeItem('stock-helper-auth-mode');
-                  recheckConfig();
+                  // 刷新页面回到配置流程
+                  window.location.reload();
                 }}
                 className="mt-2 text-sm text-blue-600 hover:underline"
               >

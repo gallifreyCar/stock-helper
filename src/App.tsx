@@ -7,7 +7,7 @@ import type { StorageData } from './types';
 
 // 认证保护组件
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, authMode, recheckConfig } = useAuth();
+  const { user, loading, authMode } = useAuth();
   const [showMigration, setShowMigration] = useState(false);
   const [localData, setLocalData] = useState<StorageData | null>(null);
 
@@ -43,10 +43,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (authMode === 'unconfigured') {
     return (
       <SupabaseConfig
-        onConfigured={() => {
-          recheckConfig();
+        onSkip={() => {
+          localStorage.setItem('stock-helper-auth-mode', 'offline');
+          window.location.reload();
         }}
-        onSkip={() => {}}
       />
     );
   }
@@ -111,7 +111,6 @@ function AuthRoutes() {
   if (authPage === 'config') {
     return (
       <SupabaseConfig
-        onConfigured={() => setAuthPage('login')}
         onSkip={() => setAuthPage('login')}
       />
     );
