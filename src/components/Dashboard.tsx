@@ -250,39 +250,47 @@ export function Dashboard() {
           </div>
 
           <div className="divide-y divide-gray-100">
-            {clearedStocks.map(pos => (
-              <div key={`stock-${pos.stockCode}`} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{pos.stockName}</p>
-                  <p className="text-sm text-gray-500">{pos.stockCode} · 已清仓</p>
-                </div>
-                <div className="text-right">
-                  <p className={`font-medium ${pos.realizedProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {pos.realizedProfit >= 0 ? '+' : ''}{formatMoney(pos.realizedProfit)}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {pos.transactions.length} 次交易
-                  </p>
-                </div>
-              </div>
-            ))}
+            {clearedStocks.map(pos => {
+                const buyCount = pos.transactions.filter(t => t.type === 'buy').length;
+                const sellCount = pos.transactions.filter(t => t.type === 'sell').length;
+                return (
+                  <div key={`stock-${pos.stockCode}`} className="p-4 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{pos.stockName}</p>
+                      <p className="text-sm text-gray-500">{pos.stockCode} · 已清仓</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-medium ${pos.realizedProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {pos.realizedProfit >= 0 ? '+' : ''}{formatMoney(pos.realizedProfit)}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        买入{buyCount}次 / 卖出{sellCount}次
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
 
-            {clearedFunds.map(pos => (
-              <div key={`fund-${pos.fundCode}`} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{pos.fundName}</p>
-                  <p className="text-sm text-gray-500">{pos.fundCode} · 已清仓</p>
-                </div>
-                <div className="text-right">
-                  <p className={`font-medium ${pos.realizedProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {pos.realizedProfit >= 0 ? '+' : ''}{formatMoney(pos.realizedProfit)}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {pos.transactions.length} 次交易
-                  </p>
-                </div>
-              </div>
-            ))}
+              {clearedFunds.map(pos => {
+                const buyCount = pos.transactions.filter(t => t.type === 'buy').length;
+                const sellCount = pos.transactions.filter(t => t.type === 'sell').length;
+                return (
+                  <div key={`fund-${pos.fundCode}`} className="p-4 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{pos.fundName}</p>
+                      <p className="text-sm text-gray-500">{pos.fundCode} · 已清仓</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-medium ${pos.realizedProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {pos.realizedProfit >= 0 ? '+' : ''}{formatMoney(pos.realizedProfit)}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        买入{buyCount}次 / 卖出{sellCount}次
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

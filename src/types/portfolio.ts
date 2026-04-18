@@ -143,9 +143,9 @@ export const defaultStorageData: StorageData = {
   },
 };
 
-// 排序交易记录（最近的在前）
-function sortTransactionsDesc<T extends { date: string }>(txs: T[]): T[] {
-  return txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+// 排序交易记录（最早的在前，用于成本计算）
+function sortTransactionsAsc<T extends { date: string }>(txs: T[]): T[] {
+  return txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
 // 生成唯一ID
@@ -169,14 +169,16 @@ export function calculateStockPositions(transactions: StockTransaction[]): Stock
   const results: StockPositionSummary[] = [];
 
   for (const [_, txs] of grouped) {
-    // 按日期排序（最近的在前）
-    const sorted = sortTransactionsDesc(txs);
+    // 按日期升序排序用于计算（最早在前，确保买入先处理）
+    const sortedForCalc = sortTransactionsAsc(txs);
+    // 降序排序用于显示（最近的在前）
+    const sortedForDisplay = sortTransactionsAsc([...txs]).reverse();
 
     let totalQuantity = 0;
     let totalCost = 0;
     let realizedProfit = 0;
 
-    for (const tx of sorted) {
+    for (const tx of sortedForCalc) {
       if (tx.type === 'buy') {
         totalQuantity += tx.quantity;
         totalCost += tx.amount + tx.fee;
@@ -200,7 +202,7 @@ export function calculateStockPositions(transactions: StockTransaction[]): Stock
 
     // 只保留有持仓或有已实现盈亏的
     if (totalQuantity > 0 || realizedProfit !== 0) {
-      const first = sorted[0];
+      const first = sortedForCalc[0];  // 用最早的交易获取基本信息
       results.push({
         stockCode: first.stockCode,
         stockName: first.stockName,
@@ -209,7 +211,7 @@ export function calculateStockPositions(transactions: StockTransaction[]): Stock
         avgPrice: totalQuantity > 0 ? totalCost / totalQuantity : 0,
         totalCost,
         realizedProfit,
-        transactions: sorted,
+        transactions: sortedForDisplay,  // 显示时最近的在前
       });
     }
   }
@@ -232,14 +234,16 @@ export function calculateFundPositions(transactions: FundTransaction[]): FundPos
   const results: FundPositionSummary[] = [];
 
   for (const [_, txs] of grouped) {
-    // 按日期排序（最近的在前）
-    const sorted = sortTransactionsDesc(txs);
+    // 按日期升序排序用于计算
+    const sortedForCalc = sortTransactionsAsc(txs);
+    // 降序排序用于显示
+    const sortedForDisplay = sortTransactionsAsc([...txs]).reverse();
 
     let totalShares = 0;
     let totalCost = 0;
     let realizedProfit = 0;
 
-    for (const tx of sorted) {
+    for (const tx of sortedForCalc) {
       if (tx.type === 'buy') {
         totalShares += tx.shares;
         totalCost += tx.amount + (tx.fee || 0);  // 申购费计入成本
@@ -260,7 +264,7 @@ export function calculateFundPositions(transactions: FundTransaction[]): FundPos
     }
 
     if (totalShares > 0 || realizedProfit !== 0) {
-      const first = sorted[0];
+      const first = sortedForCalc[0];  // 用最早的交易获取基本信息
       results.push({
         fundCode: first.fundCode,
         fundName: first.fundName,
@@ -269,7 +273,7 @@ export function calculateFundPositions(transactions: FundTransaction[]): FundPos
         avgNav: totalShares > 0 ? totalCost / totalShares : 0,
         totalCost,
         realizedProfit,
-        transactions: sorted,
+        transactions: sortedForDisplay,  // 显示时最近的在前
       });
     }
   }

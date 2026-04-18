@@ -45,8 +45,33 @@ export function Portfolio() {
   };
 
   useEffect(() => {
-    refreshQuotes();
-  }, []);
+    async function fetchQuotes() {
+      setLoading(true);
+
+      // 获取有持仓的股票代码（重新计算确保最新）
+      const positions = calculateStockPositions(data.stockTransactions);
+      const fPositions = calculateFundPositions(data.fundTransactions);
+
+      const stockCodes = positions.filter(p => p.totalQuantity > 0).map(p => p.stockCode);
+      if (stockCodes.length > 0) {
+        const quotes = await fetchStockQuotes(stockCodes);
+        setStockQuotes(new Map(quotes.map(q => [q.code, q])));
+      } else {
+        setStockQuotes(new Map());
+      }
+
+      const fundCodes = fPositions.filter(p => p.totalShares > 0).map(p => p.fundCode);
+      if (fundCodes.length > 0) {
+        setFundNavs(await fetchFundNavs(fundCodes));
+      } else {
+        setFundNavs(new Map());
+      }
+
+      setLoading(false);
+    }
+
+    fetchQuotes();
+  }, [data.stockTransactions, data.fundTransactions]);
 
   // 筛选持仓
   const filteredStocks = selectedAccount === 'all'
@@ -354,22 +379,36 @@ export function Portfolio() {
         <div className="bg-gray-50 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-700 mb-3">已清仓记录</h3>
           <div className="space-y-2">
-            {filteredStocks.filter(p => p.totalQuantity === 0 && p.realizedProfit !== 0).map(pos => (
+            {filteredStocks.filter(p => p.totalQuantity === 0 && p.realizedProfit !== 0).map(pos => {
+            const buyCount = pos.transactions.filter(t => t.type === 'buy').length;
+            const sellCount = pos.transactions.filter(t => t.type === 'sell').length;
+            return (
               <div key={`sold-${pos.stockCode}`} className="flex items-center justify-between py-2 border-b border-gray-200 cursor-pointer hover:bg-gray-100 rounded px-2" onClick={() => setShowHistory(pos)}>
-                <span className="text-sm">{pos.stockName} ({pos.stockCode})</span>
+                <div>
+                  <span className="text-sm">{pos.stockName} ({pos.stockCode})</span>
+                  <span className="text-xs text-gray-400 ml-2">买入{buyCount}次 / 卖出{sellCount}次</span>
+                </div>
                 <span className={`text-sm font-medium ${pos.realizedProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                   已实现盈亏: {pos.realizedProfit >= 0 ? '+' : ''}{formatMoney(pos.realizedProfit)}
                 </span>
               </div>
-            ))}
-            {filteredFunds.filter(p => p.totalShares === 0 && p.realizedProfit !== 0).map(pos => (
+            );
+          })}
+            {filteredFunds.filter(p => p.totalShares === 0 && p.realizedProfit !== 0).map(pos => {
+            const buyCount = pos.transactions.filter(t => t.type === 'buy').length;
+            const sellCount = pos.transactions.filter(t => t.type === 'sell').length;
+            return (
               <div key={`sold-${pos.fundCode}`} className="flex items-center justify-between py-2 border-b border-gray-200 cursor-pointer hover:bg-gray-100 rounded px-2" onClick={() => setShowHistory(pos)}>
-                <span className="text-sm">{pos.fundName} ({pos.fundCode})</span>
+                <div>
+                  <span className="text-sm">{pos.fundName} ({pos.fundCode})</span>
+                  <span className="text-xs text-gray-400 ml-2">买入{buyCount}次 / 卖出{sellCount}次</span>
+                </div>
                 <span className={`text-sm font-medium ${pos.realizedProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                   已实现盈亏: {pos.realizedProfit >= 0 ? '+' : ''}{formatMoney(pos.realizedProfit)}
                 </span>
               </div>
-            ))}
+            );
+          })}
           </div>
         </div>
       )}
