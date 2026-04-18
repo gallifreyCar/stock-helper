@@ -1,19 +1,19 @@
 // 数据迁移组件 - 将 localStorage 数据迁移到 Supabase
 
 import { useState } from 'react';
-import { Upload, Cloud, Check, Loader2 } from 'lucide-react';
+import { Upload, Cloud, Check, Loader2, X } from 'lucide-react';
 import type { StorageData } from '../../types';
 
 interface DataMigrationProps {
   localData: StorageData;
   onMigrate: (data: StorageData) => Promise<void>;
   onSkip: () => void;
+  migrating?: boolean;
+  error?: string | null;
 }
 
-export function DataMigration({ localData, onMigrate, onSkip }: DataMigrationProps) {
-  const [migrating, setMigrating] = useState(false);
+export function DataMigration({ localData, onMigrate, onSkip, migrating = false, error }: DataMigrationProps) {
   const [migrated, setMigrated] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const hasLocalData = localData &&
     (localData.accounts.length > 0 ||
@@ -26,17 +26,8 @@ export function DataMigration({ localData, onMigrate, onSkip }: DataMigrationPro
   }
 
   const handleMigrate = async () => {
-    setMigrating(true);
-    setError(null);
-    try {
-      await onMigrate(localData);
-      setMigrated(true);
-      // 清理 localStorage
-      localStorage.removeItem('stock-helper-data');
-    } catch (e) {
-      setError((e as Error).message || '迁移失败，请重试');
-    }
-    setMigrating(false);
+    await onMigrate(localData);
+    setMigrated(true);
   };
 
   if (migrated) {
@@ -100,7 +91,8 @@ export function DataMigration({ localData, onMigrate, onSkip }: DataMigrationPro
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm flex items-center gap-2">
+            <X className="w-4 h-4" />
             {error}
           </div>
         )}

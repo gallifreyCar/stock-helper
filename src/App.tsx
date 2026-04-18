@@ -1,9 +1,10 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout, Dashboard, Portfolio, Screener, Alerts, Settings } from './components';
 import { LoginPage, RegisterPage, DataMigration, SupabaseConfig } from './components/auth';
 import type { StorageData } from './types';
+import { getSupabaseClient } from './lib/supabase';
 
 // 认证保护组件
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -75,7 +76,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// 数据迁移包装器
+// 数据迁移包装器 - 真正同步到云端
 function DataMigrationWrapper({
   localData,
   onComplete,
@@ -85,16 +86,140 @@ function DataMigrationWrapper({
   onComplete: () => void;
   onSkip: () => void;
 }) {
-  const handleMigrate = async () => {
-    localStorage.setItem('stock-helper-migration-pending', JSON.stringify(localData));
-    onComplete();
+  const { user } = useAuth();
+  const [migrating, setMigrating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleMigrate = useCallback(async () => {
+    if (!user?.id) {
+      setError('用户未登录');
+      return;
+    }
+
+    setMigrating(true);
+    setError(null);
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setError('Supabase 未配置');
+      setMigrating(false);
+      return;
+    }
+
+    try {
+      // 同步账户
+      for (const account of localData.accounts) {
+        await supabase.from('accounts').insert({
+          user_id: user.id,
+          name: account.name,
+          type: account.type,
+        });
+      }
+
+      // 同步股票交易（需要先获取账户的云端 ID）
+      const { data: cloudAccounts } = await supabase
+        .from('accounts')
+        .select('id, name')
+        .eq('user_id', user.id);
+
+      const accountMap: Record<string, string> = {};
+      (cloudAccounts || []).forEach(acc => {
+        // 根据名称匹配本地账户到云端账户
+        const localAcc = localData.accounts.find(a => a.name === acc.name);
+        if (localAcc) {
+          accountMap[localAcc.id] = acc.id;
+        }
+      });
+
+      for (const tx of localData.stockTransactions) {
+        const cloudAccountId = accountMap[tx.accountId] || Object.values(accountMap)[0];
+        if (cloudAccountId) {
+          await supabase.from('stock_transactions').insert({
+            user_id: user.id,
+            account_id: cloudAccountId,
+            stock_code: tx.stockCode,
+            stock_name: tx.stockName,
+            type: tx.type,
+            date: tx.date,
+            price: tx.price,
+            quantity: tx.quantity,
+            fee: tx.fee,
+            amount: tx.amount,
+          });
+        }
+      }
+
+      // 同步基金交易
+      for (const tx of localData.fundTransactions) {
+        const cloudAccountId = accountMap[tx.accountId] || Object.values(accountMap)[0];
+        if (cloudAccountId) {
+          await supabase.from('fund_transactions').insert({
+            user_id: user.id,
+            account_id: cloudAccountId,
+            fund_code: tx.fundCode,
+            fund_name: tx.fundName,
+            type: tx.type,
+            date: tx.date,
+            nav: tx.nav,
+            shares: tx.shares,
+            amount: tx.amount,
+            fee: tx.fee,
+          });
+        }
+      }
+
+      // 同步价格提醒
+      for (const alert of localData.alerts) {
+        await supabase.from('price_alerts').insert({
+          user_id: user.id,
+          type: alert.type,
+          code: alert.code,
+          name: alert.name,
+          alert_type: alert.alertType,
+          target_price: alert.targetPrice,
+          loss_price: alert.lossPrice,
+          enabled: alert.enabled,
+        });
+      }
+
+      // 同步设置
+      if (localData.settings) {
+        await supabase.from('user_settings').upsert({
+          user_id: user.id,
+          refresh_interval: localData.settings.refreshInterval,
+          show_notification: localData.settings.showNotification,
+          ai_provider: localData.settings.aiConfig?.provider,
+          ai_api_key: localData.settings.aiConfig?.apiKey,
+          ai_base_url: localData.settings.aiConfig?.baseUrl,
+          ai_model: localData.settings.aiConfig?.model,
+        });
+      }
+
+      // 清除本地数据
+      localStorage.removeItem('stock-helper-data');
+      localStorage.removeItem('stock-helper-migration-pending');
+
+      onComplete();
+    } catch (e) {
+      console.error('Migration failed:', e);
+      setError((e as Error).message || '迁移失败，请重试');
+    }
+
+    setMigrating(false);
+  }, [user?.id, localData, onComplete]);
+
+  // 传递真实的迁移函数给 DataMigration
+  const migrateWrapper = async () => {
+    await handleMigrate();
   };
 
   return (
     <DataMigration
       localData={localData}
-      onMigrate={handleMigrate}
+      onMigrate={migrateWrapper}
       onSkip={onSkip}
+      migrating={migrating}
+      error={error}
     />
   );
 }
