@@ -13,6 +13,7 @@ import {
   CloudOff,
   LogOut,
   User,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -23,6 +24,7 @@ interface LayoutProps {
 const navItems = [
   { path: '/', label: '总览', icon: LayoutDashboard },
   { path: '/portfolio', label: '持仓', icon: Briefcase },
+  { path: '/analysis', label: '分析', icon: Sparkles },
   { path: '/screener', label: '筛选', icon: Filter },
   { path: '/alerts', label: '提醒', icon: Bell },
   { path: '/settings', label: '设置', icon: Settings },

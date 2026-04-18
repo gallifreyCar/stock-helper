@@ -1,7 +1,7 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Layout, Dashboard, Portfolio, Screener, Alerts, Settings } from './components';
+import { Layout, Dashboard, Portfolio, Screener, Alerts, Settings, Analysis } from './components';
 import { LoginPage, RegisterPage, DataMigration, SupabaseConfig } from './components/auth';
 import type { StorageData } from './types';
 import { getSupabaseClient } from './lib/supabase';
@@ -347,6 +347,7 @@ function App() {
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/portfolio" element={<Portfolio />} />
+                  <Route path="/analysis" element={<Analysis />} />
                   <Route path="/screener" element={<Screener />} />
                   <Route path="/alerts" element={<Alerts />} />
                   <Route path="/settings" element={<Settings />} />

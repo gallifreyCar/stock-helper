@@ -6,3 +6,4 @@ export { TransactionHistory } from './TransactionHistory';
 export { Screener } from './Screener';
 export { Alerts } from './Alerts';
 export { Settings } from './Settings';
+export { Analysis } from './Analysis';
