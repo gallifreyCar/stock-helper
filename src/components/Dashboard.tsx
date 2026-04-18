@@ -1,18 +1,14 @@
 // Dashboard 总览页面
 
-import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, PiggyBank, History, CheckCircle } from 'lucide-react';
 import { useStorage } from '../hooks/useStorage';
-import { fetchStockQuotes, fetchFundNavs } from '../utils/api';
+import { useQuotes } from '../hooks/useQuotes';
 import { calculateStockPositionValue, calculateFundPositionValue, formatMoney, formatChange } from '../utils/calculator';
 import { calculateStockPositions, calculateFundPositions } from '../types';
-import type { StockQuote } from '../types';
 
 export function Dashboard() {
   const { data } = useStorage();
-  const [stockQuotes, setStockQuotes] = useState<Map<string, StockQuote>>(new Map());
-  const [fundNavs, setFundNavs] = useState<Map<string, { nav: number; name: string }>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const { stockQuotes, fundNavs, loading } = useQuotes(data);
 
   // 计算持仓汇总
   const stockPositions = calculateStockPositions(data.stockTransactions);
@@ -21,51 +17,6 @@ export function Dashboard() {
   // 已清仓记录（持仓为0但有已实现盈亏）
   const clearedStocks = stockPositions.filter(p => p.totalQuantity === 0 && p.realizedProfit !== 0);
   const clearedFunds = fundPositions.filter(p => p.totalShares === 0 && p.realizedProfit !== 0);
-
-  // 判断是否在交易时间段内（周一至周五 9:30-11:30, 13:00-15:00）
-  const isInTradingTime = () => {
-    const now = new Date();
-    const day = now.getDay();
-    if (day === 0 || day === 6) return false;  // 周末不交易
-
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const time = hours * 60 + minutes;
-
-    // 9:30-11:30 = 570-690
-    // 13:00-15:00 = 780-900
-    return (time >= 570 && time <= 690) || (time >= 780 && time <= 900);
-  };
-
-  // 获取实时行情（只在交易时间段内自动刷新）
-  useEffect(() => {
-    async function fetchQuotes() {
-      setLoading(true);
-
-      // 获取有持仓的股票代码
-      const stockCodes = stockPositions.filter(p => p.totalQuantity > 0).map(p => p.stockCode);
-      if (stockCodes.length > 0) {
-        const quotes = await fetchStockQuotes(stockCodes);
-        setStockQuotes(new Map(quotes.map(q => [q.code, q])));
-      }
-
-      // 获取有持仓的基金代码
-      const fundCodes = fundPositions.filter(p => p.totalShares > 0).map(p => p.fundCode);
-      if (fundCodes.length > 0) {
-        setFundNavs(await fetchFundNavs(fundCodes));
-      }
-
-      setLoading(false);
-    }
-
-    fetchQuotes();
-
-    // 只在交易时间内设置定时刷新
-    if (isInTradingTime()) {
-      const interval = setInterval(fetchQuotes, 30000);
-      return () => clearInterval(interval);
-    }
-  }, []);
 
   // 计算总市值和总盈亏
   const totalStockValue = stockPositions.reduce((sum, pos) => {

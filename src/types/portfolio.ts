@@ -70,6 +70,13 @@ export interface StorageData {
   settings: Settings;
 }
 
+// 行情缓存（单独存储，避免频繁更新主数据）
+export interface QuotesCache {
+  stockQuotes: { code: string; name: string; price: number; changePercent: number }[];
+  fundNavs: { code: string; name: string; nav: number }[];
+  updatedAt: string;  // 更新时间
+}
+
 // 价格提醒
 export interface PriceAlert {
   id: string;

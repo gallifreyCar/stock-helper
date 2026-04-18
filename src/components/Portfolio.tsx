@@ -1,20 +1,18 @@
 // Portfolio 持仓管理页面 - 使用交易记录
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, RefreshCw, History, Trash2 } from 'lucide-react';
 import { useStorage } from '../hooks/useStorage';
-import { fetchStockQuotes, fetchFundNavs } from '../utils/api';
+import { useQuotes } from '../hooks/useQuotes';
 import { calculateStockPositionValue, calculateFundPositionValue, formatMoney, formatChange } from '../utils/calculator';
 import { calculateStockPositions, calculateFundPositions, generateId } from '../types';
-import type { StockPositionSummary, FundPositionSummary, StockQuote, StockTransaction, FundTransaction } from '../types';
+import type { StockPositionSummary, FundPositionSummary, StockTransaction, FundTransaction } from '../types';
 import { AddTransactionModal } from './AddTransactionModal';
 import { TransactionHistory } from './TransactionHistory';
 
 export function Portfolio() {
   const { data, setData } = useStorage();
-  const [stockQuotes, setStockQuotes] = useState<Map<string, StockQuote>>(new Map());
-  const [fundNavs, setFundNavs] = useState<Map<string, { nav: number; name: string }>>(new Map());
-  const [loading, setLoading] = useState(false);
+  const { stockQuotes, fundNavs, loading, refresh } = useQuotes(data);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const [positionType, setPositionType] = useState<'stock' | 'fund'>('stock');
@@ -23,77 +21,6 @@ export function Portfolio() {
   // 计算持仓汇总
   const stockPositions = calculateStockPositions(data.stockTransactions);
   const fundPositions = calculateFundPositions(data.fundTransactions);
-
-  // 刷新行情
-  const refreshQuotes = async () => {
-    setLoading(true);
-
-    // 获取有持仓的股票代码
-    const stockCodes = stockPositions.filter(p => p.totalQuantity > 0).map(p => p.stockCode);
-    if (stockCodes.length > 0) {
-      const quotes = await fetchStockQuotes(stockCodes);
-      setStockQuotes(new Map(quotes.map(q => [q.code, q])));
-    }
-
-    // 获取有持仓的基金代码
-    const fundCodes = fundPositions.filter(p => p.totalShares > 0).map(p => p.fundCode);
-    if (fundCodes.length > 0) {
-      setFundNavs(await fetchFundNavs(fundCodes));
-    }
-
-    setLoading(false);
-  };
-
-  // 判断是否在交易时间段内（周一至周五 9:30-11:30, 13:00-15:00）
-  const isInTradingTime = () => {
-    const now = new Date();
-    const day = now.getDay();
-    if (day === 0 || day === 6) return false;  // 周末不交易
-
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const time = hours * 60 + minutes;
-
-    // 9:30-11:30 = 570-690
-    // 13:00-15:00 = 780-900
-    return (time >= 570 && time <= 690) || (time >= 780 && time <= 900);
-  };
-
-  // 获取行情（页面加载时获取一次，交易时间内定时刷新）
-  useEffect(() => {
-    async function fetchQuotes() {
-      setLoading(true);
-
-      const positions = calculateStockPositions(data.stockTransactions);
-      const fPositions = calculateFundPositions(data.fundTransactions);
-
-      const stockCodes = positions.filter(p => p.totalQuantity > 0).map(p => p.stockCode);
-      if (stockCodes.length > 0) {
-        const quotes = await fetchStockQuotes(stockCodes);
-        setStockQuotes(new Map(quotes.map(q => [q.code, q])));
-      } else {
-        setStockQuotes(new Map());
-      }
-
-      const fundCodes = fPositions.filter(p => p.totalShares > 0).map(p => p.fundCode);
-      if (fundCodes.length > 0) {
-        setFundNavs(await fetchFundNavs(fundCodes));
-      } else {
-        setFundNavs(new Map());
-      }
-
-      setLoading(false);
-    }
-
-    // 页面加载时获取一次
-    fetchQuotes();
-
-    // 交易时间内每30秒刷新
-    if (isInTradingTime()) {
-      const interval = setInterval(fetchQuotes, 30000);
-      return () => clearInterval(interval);
-    }
-  }, []);  // 不监听交易数据变化
 
   // 筛选持仓
   const filteredStocks = selectedAccount === 'all'
@@ -198,7 +125,7 @@ export function Portfolio() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={refreshQuotes}
+            onClick={refresh}
             disabled={loading}
             className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-blue-600"
           >
