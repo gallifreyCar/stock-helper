@@ -1,183 +1,215 @@
-// Supabase 数据库类型定义
-
 export type Json =
   | string
   | number
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       accounts: {
         Row: {
-          id: string;
-          user_id: string;
-          name: string;
-          type: 'long-term' | 'short-term' | 'fund';
-          created_at: string;
-        };
+          created_at: string | null
+          id: string
+          name: string
+          type: string
+          user_id: string
+        }
         Insert: {
-          id?: string;
-          user_id: string;
-          name: string;
-          type: 'long-term' | 'short-term' | 'fund';
-        };
+          created_at?: string | null
+          id?: string
+          name: string
+          type: string
+          user_id: string
+        }
         Update: {
-          name?: string;
-          type?: 'long-term' | 'short-term' | 'fund';
-        };
-      };
-      stock_transactions: {
-        Row: {
-          id: string;
-          user_id: string;
-          account_id: string;
-          stock_code: string;
-          stock_name: string;
-          type: 'buy' | 'sell';
-          date: string;
-          price: number;
-          quantity: number;
-          fee: number;
-          amount: number;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          account_id: string;
-          stock_code: string;
-          stock_name: string;
-          type: 'buy' | 'sell';
-          date: string;
-          price: number;
-          quantity: number;
-          fee?: number;
-          amount: number;
-        };
-        Update: {
-          stock_code?: string;
-          stock_name?: string;
-          type?: 'buy' | 'sell';
-          date?: string;
-          price?: number;
-          quantity?: number;
-          fee?: number;
-          amount?: number;
-        };
-      };
+          created_at?: string | null
+          id?: string
+          name?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       fund_transactions: {
         Row: {
-          id: string;
-          user_id: string;
-          account_id: string;
-          fund_code: string;
-          fund_name: string;
-          type: 'buy' | 'sell';
-          date: string;
-          nav: number;
-          shares: number;
-          amount: number;
-          fee: number;
-          created_at: string;
-        };
+          account_id: string
+          amount: number
+          created_at: string | null
+          date: string
+          fee: number | null
+          fund_code: string
+          fund_name: string
+          id: string
+          nav: number
+          shares: number
+          type: string
+          user_id: string
+        }
         Insert: {
-          id?: string;
-          user_id: string;
-          account_id: string;
-          fund_code: string;
-          fund_name: string;
-          type: 'buy' | 'sell';
-          date: string;
-          nav: number;
-          shares: number;
-          amount: number;
-          fee?: number;
-        };
+          account_id: string
+          amount: number
+          created_at?: string | null
+          date: string
+          fee?: number | null
+          fund_code: string
+          fund_name: string
+          id?: string
+          nav: number
+          shares: number
+          type: string
+          user_id: string
+        }
         Update: {
-          fund_code?: string;
-          fund_name?: string;
-          type?: 'buy' | 'sell';
-          date?: string;
-          nav?: number;
-          shares?: number;
-          amount?: number;
-          fee?: number;
-        };
-      };
+          account_id?: string
+          amount?: number
+          created_at?: string | null
+          date?: string
+          fee?: number | null
+          fund_code?: string
+          fund_name?: string
+          id?: string
+          nav?: number
+          shares?: number
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       price_alerts: {
         Row: {
-          id: string;
-          user_id: string;
-          type: 'stock' | 'fund';
-          code: string;
-          name: string;
-          alert_type: 'profit' | 'loss' | 'both';
-          target_price: number;
-          loss_price: number | null;
-          enabled: boolean;
-          triggered: boolean;
-          created_at: string;
-        };
+          alert_type: string
+          code: string
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          loss_price: number | null
+          name: string
+          target_price: number
+          triggered: boolean | null
+          type: string
+          user_id: string
+        }
         Insert: {
-          id?: string;
-          user_id: string;
-          type: 'stock' | 'fund';
-          code: string;
-          name: string;
-          alert_type: 'profit' | 'loss' | 'both';
-          target_price: number;
-          loss_price?: number | null;
-          enabled?: boolean;
-        };
+          alert_type: string
+          code: string
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          loss_price?: number | null
+          name: string
+          target_price: number
+          triggered?: boolean | null
+          type: string
+          user_id: string
+        }
         Update: {
-          enabled?: boolean;
-          triggered?: boolean;
-          target_price?: number;
-          loss_price?: number | null;
-        };
-      };
+          alert_type?: string
+          code?: string
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          loss_price?: number | null
+          name?: string
+          target_price?: number
+          triggered?: boolean | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stock_transactions: {
+        Row: {
+          account_id: string
+          amount: number
+          created_at: string | null
+          date: string
+          fee: number | null
+          id: string
+          price: number
+          quantity: number
+          stock_code: string
+          stock_name: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          created_at?: string | null
+          date: string
+          fee?: number | null
+          id?: string
+          price: number
+          quantity: number
+          stock_code: string
+          stock_name: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          created_at?: string | null
+          date?: string
+          fee?: number | null
+          id?: string
+          price?: number
+          quantity?: number
+          stock_code?: string
+          stock_name?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
-          user_id: string;
-          refresh_interval: number;
-          show_notification: boolean;
-          ai_provider: string | null;
-          ai_api_key: string | null;
-          ai_base_url: string | null;
-          ai_model: string | null;
-          created_at: string;
-          updated_at: string;
-        };
+          ai_api_key: string | null
+          ai_base_url: string | null
+          ai_model: string | null
+          ai_provider: string | null
+          created_at: string | null
+          refresh_interval: number | null
+          show_notification: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
         Insert: {
-          user_id: string;
-          refresh_interval?: number;
-          show_notification?: boolean;
-          ai_provider?: string | null;
-          ai_api_key?: string | null;
-          ai_base_url?: string | null;
-          ai_model?: string | null;
-        };
+          ai_api_key?: string | null
+          ai_base_url?: string | null
+          ai_model?: string | null
+          ai_provider?: string | null
+          created_at?: string | null
+          refresh_interval?: number | null
+          show_notification?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
         Update: {
-          refresh_interval?: number;
-          show_notification?: boolean;
-          ai_provider?: string | null;
-          ai_api_key?: string | null;
-          ai_base_url?: string | null;
-          ai_model?: string | null;
-        };
-      };
-    };
-    Views: {};
-    Functions: {};
-    Enums: {};
-  };
+          ai_api_key?: string | null
+          ai_base_url?: string | null
+          ai_model?: string | null
+          ai_provider?: string | null
+          created_at?: string | null
+          refresh_interval?: number | null
+          show_notification?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {}
+    Functions: {}
+    Enums: {}
+  }
 }
 
-// 表名常量
+export type TablesInsert<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
+
 export const TABLES = {
   ACCOUNTS: 'accounts',
   STOCK_TRANSACTIONS: 'stock_transactions',

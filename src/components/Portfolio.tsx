@@ -11,7 +11,7 @@ import { AddTransactionModal } from './AddTransactionModal';
 import { TransactionHistory } from './TransactionHistory';
 
 export function Portfolio() {
-  const { data, setData } = useStorage();
+  const { data, updateData } = useStorage();
   const { stockQuotes, fundNavs, loading, refresh } = useQuotes(data);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
@@ -34,13 +34,11 @@ export function Portfolio() {
   // 添加交易记录
   const addTransaction = (tx: StockTransaction | FundTransaction, type: 'stock' | 'fund') => {
     if (type === 'stock') {
-      setData({
-        ...data,
+      updateData({
         stockTransactions: [...data.stockTransactions, tx as StockTransaction],
       });
     } else {
-      setData({
-        ...data,
+      updateData({
         fundTransactions: [...data.fundTransactions, tx as FundTransaction],
       });
     }
@@ -49,13 +47,11 @@ export function Portfolio() {
   // 删除交易记录
   const deleteTransaction = (id: string, type: 'stock' | 'fund') => {
     if (type === 'stock') {
-      setData({
-        ...data,
+      updateData({
         stockTransactions: data.stockTransactions.filter(t => t.id !== id),
       });
     } else {
-      setData({
-        ...data,
+      updateData({
         fundTransactions: data.fundTransactions.filter(t => t.id !== id),
       });
     }
@@ -64,13 +60,11 @@ export function Portfolio() {
   // 更新交易记录
   const updateTransaction = (tx: StockTransaction | FundTransaction, type: 'stock' | 'fund') => {
     if (type === 'stock') {
-      setData({
-        ...data,
+      updateData({
         stockTransactions: data.stockTransactions.map(t => t.id === tx.id ? tx as StockTransaction : t),
       });
     } else {
-      setData({
-        ...data,
+      updateData({
         fundTransactions: data.fundTransactions.map(t => t.id === tx.id ? tx as FundTransaction : t),
       });
     }
@@ -79,13 +73,11 @@ export function Portfolio() {
   // 删除整个持仓（清空所有交易记录）
   const deletePosition = (code: string, accountId: string, type: 'stock' | 'fund') => {
     if (type === 'stock') {
-      setData({
-        ...data,
+      updateData({
         stockTransactions: data.stockTransactions.filter(t => t.stockCode !== code || t.accountId !== accountId),
       });
     } else {
-      setData({
-        ...data,
+      updateData({
         fundTransactions: data.fundTransactions.filter(t => t.fundCode !== code || t.accountId !== accountId),
       });
     }

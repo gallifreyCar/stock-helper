@@ -6,7 +6,7 @@ import { useStorage } from '../hooks/useStorage';
 import { AI_PROVIDERS, type AIConfig } from '../types';
 
 export function Settings() {
-  const { data, setData, exportData, importData, clearData } = useStorage();
+  const { data, updateData, exportData, importData, clearData } = useStorage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showKey, setShowKey] = useState(false);
   const [aiConfig, setAiConfig] = useState<AIConfig>(
@@ -16,8 +16,7 @@ export function Settings() {
 
   // 保存AI配置
   const saveAiConfig = () => {
-    setData({
-      ...data,
+    updateData({
       settings: {
         ...data.settings,
         aiConfig,
@@ -70,9 +69,9 @@ export function Settings() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const json = event.target?.result as string;
-      const success = importData(json);
+      const success = await importData(json);
       if (success) {
         alert('导入成功！');
       } else {

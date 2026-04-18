@@ -7,7 +7,7 @@ import type { PriceAlert } from '../types';
 import { generateId } from '../types';
 
 export function Alerts() {
-  const { data, setData } = useStorage();
+  const { data, updateData } = useStorage();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAlert, setNewAlert] = useState({
     type: 'stock' as 'stock' | 'fund',
@@ -34,8 +34,7 @@ export function Alerts() {
       createdAt: new Date().toISOString(),
     };
 
-    setData({
-      ...data,
+    updateData({
       alerts: [...data.alerts, alert],
     });
 
@@ -52,16 +51,14 @@ export function Alerts() {
 
   // 删除提醒
   const deleteAlert = (id: string) => {
-    setData({
-      ...data,
+    updateData({
       alerts: data.alerts.filter(a => a.id !== id),
     });
   };
 
   // 切换提醒状态
   const toggleAlert = (id: string) => {
-    setData({
-      ...data,
+    updateData({
       alerts: data.alerts.map(a =>
         a.id === id ? { ...a, enabled: !a.enabled } : a
       ),
@@ -73,8 +70,7 @@ export function Alerts() {
     if ('Notification' in window) {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
-        setData({
-          ...data,
+        updateData({
           settings: { ...data.settings, showNotification: true },
         });
       }
