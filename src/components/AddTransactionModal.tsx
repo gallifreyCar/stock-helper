@@ -25,7 +25,7 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
   const [code, setCode] = useState(existingCode || (isEditing ? (type === 'stock' ? editTx?.stockCode : editFundTx?.fundCode) : '') || '');
   const [name, setName] = useState(existingName || (isEditing ? (type === 'stock' ? editTx?.stockName : editFundTx?.fundName) : '') || '');
   const [selectedAccountId, setSelectedAccountId] = useState(accountId || (isEditing ? editingTransaction?.accountId : '') || accounts[0]?.id || '');
-  const [txType, setTxType] = useState<'buy' | 'sell'>(isEditing ? editingTransaction?.type : 'buy' || 'buy');
+  const [txType, setTxType] = useState<'buy' | 'sell'>(isEditing ? (editingTransaction?.type ?? 'buy') : 'buy');
   const [date, setDate] = useState(isEditing ? editingTransaction?.date : new Date().toISOString().slice(0, 10) || new Date().toISOString().slice(0, 10));
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
@@ -34,14 +34,14 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
   const [price, setPrice] = useState(isEditing && type === 'stock' ? editTx?.price?.toString() : '');
   const [quantity, setQuantity] = useState(isEditing && type === 'stock' ? editTx?.quantity?.toString() : '');
   const [totalAmount, setTotalAmount] = useState(isEditing && type === 'stock' ? editTx?.amount?.toString() : '');
-  const [fee, setFee] = useState(isEditing && type === 'stock' ? editTx?.fee?.toString() : '0');
+  const [fee, setFee] = useState(isEditing && type === 'stock' ? (editTx?.fee?.toString() ?? '0') : '0');
   const [inputMode, setInputMode] = useState<'quantity' | 'amount'>('amount');  // 默认按金额
 
   // 基金相关
   const [nav, setNav] = useState(isEditing && type === 'fund' ? editFundTx?.nav?.toString() : '');
   const [shares, setShares] = useState(isEditing && type === 'fund' ? editFundTx?.shares?.toString() : '');
-  const [fundAmount, setFundAmount] = useState(isEditing && type === 'fund' ? editFundTx?.amount?.toString() : '');
-  const [fundFee, setFundFee] = useState(isEditing && type === 'fund' ? editFundTx?.fee?.toString() : '0');
+  const [fundAmount, setFundAmount] = useState(isEditing && type === 'fund' ? (editFundTx?.amount?.toString() ?? '') : '');
+  const [fundFee, setFundFee] = useState(isEditing && type === 'fund' ? (editFundTx?.fee?.toString() ?? '0') : '0');
   const [fundInputMode, setFundInputMode] = useState<'amount' | 'shares'>('shares');  // 默认按份额
 
   // 初始化时如果有代码就搜索
