@@ -1,12 +1,16 @@
 // Settings 设置页面
 
 import { useRef, useState } from 'react';
-import { Download, Upload, Trash2, Database, Sparkles, Key, Check, Eye, EyeOff } from 'lucide-react';
+import { Download, Upload, Trash2, Database, Sparkles, Key, Check, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useStorage } from '../hooks/useStorage';
+import { useAuth } from '../contexts/AuthContext';
 import { AI_PROVIDERS, type AIConfig } from '../types';
+import { getSupabaseUrl, clearSupabaseConfig } from '../lib/supabase';
 
 export function Settings() {
   const { data, updateData, exportData, importData, clearData } = useStorage();
+  const { authMode, recheckConfig } = useAuth();
+  const supabaseUrl = getSupabaseUrl();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showKey, setShowKey] = useState(false);
   const [aiConfig, setAiConfig] = useState<AIConfig>(
@@ -92,6 +96,54 @@ export function Settings() {
 
   return (
     <div className="space-y-6">
+      {/* 云端数据库配置 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Database className="w-5 h-5 text-blue-500" />
+          云端数据库
+        </h2>
+
+        <div className="mb-4">
+          {supabaseUrl ? (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-blue-700 font-medium">已配置</p>
+                  <p className="text-xs text-blue-600">{supabaseUrl}</p>
+                </div>
+                <span className={`px-2 py-1 rounded text-xs ${authMode === 'online' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {authMode === 'online' ? '在线' : authMode === 'offline' ? '离线' : '未配置'}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  clearSupabaseConfig();
+                  localStorage.removeItem('stock-helper-auth-mode');
+                  recheckConfig();
+                }}
+                className="mt-3 text-sm text-red-600 hover:underline flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                重新配置数据库
+              </button>
+            </div>
+          ) : (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-700">未配置云端数据库，数据仅保存在本地</p>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('stock-helper-auth-mode');
+                  recheckConfig();
+                }}
+                className="mt-2 text-sm text-blue-600 hover:underline"
+              >
+                配置云端数据库
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* AI配置 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
