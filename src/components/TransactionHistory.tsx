@@ -1,7 +1,7 @@
 // 交易记录历史组件
 
 import { useState } from 'react';
-import { X, Plus, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, Plus, Trash2, TrendingUp, TrendingDown, Edit2 } from 'lucide-react';
 import type { StockTransaction, FundTransaction, StockPositionSummary, FundPositionSummary, Account } from '../types';
 import { generateId } from '../types';
 import { formatMoney, formatDate } from '../utils/calculator';
@@ -16,6 +16,7 @@ interface TransactionHistoryProps {
   onClose: () => void;
   onAddTransaction: (tx: StockTransaction | FundTransaction) => void;
   onDeleteTransaction: (id: string) => void;
+  onUpdateTransaction?: (tx: StockTransaction | FundTransaction) => void;
 }
 
 export function TransactionHistory({
@@ -27,8 +28,10 @@ export function TransactionHistory({
   onClose,
   onAddTransaction,
   onDeleteTransaction,
+  onUpdateTransaction,
 }: TransactionHistoryProps) {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingTx, setEditingTx] = useState<StockTransaction | FundTransaction | null>(null);
 
   const transactions = position.transactions;
   const realizedProfit = position.realizedProfit;
@@ -154,12 +157,22 @@ export function TransactionHistory({
                     <td className="px-4 py-3 text-sm">{formatMoney(tx.amount)}</td>
                     <td className="px-4 py-3 text-sm">{formatMoney(tx.fee || 0)}</td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => onDeleteTransaction(tx.id)}
-                        className="text-gray-400 hover:text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setEditingTx(tx)}
+                          className="text-gray-400 hover:text-blue-600"
+                          title="编辑"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteTransaction(tx.id)}
+                          className="text-gray-400 hover:text-red-600"
+                          title="删除"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -180,6 +193,25 @@ export function TransactionHistory({
             onSave={(tx) => {
               onAddTransaction({ ...tx, id: generateId() });
               setShowAddModal(false);
+            }}
+          />
+        )}
+
+        {/* Edit Transaction Modal */}
+        {editingTx && (
+          <AddTransactionModal
+            type={type}
+            accountId={editingTx.accountId}
+            accounts={accounts}
+            existingCode={code}
+            existingName={name}
+            editingTransaction={editingTx}
+            onClose={() => setEditingTx(null)}
+            onSave={(tx) => {
+              if (onUpdateTransaction) {
+                onUpdateTransaction({ ...tx, id: editingTx.id });
+              }
+              setEditingTx(null);
             }}
           />
         )}

@@ -143,6 +143,11 @@ export const defaultStorageData: StorageData = {
   },
 };
 
+// 排序交易记录（最近的在前）
+function sortTransactionsDesc<T extends { date: string }>(txs: T[]): T[] {
+  return txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
 // 生成唯一ID
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
@@ -164,8 +169,8 @@ export function calculateStockPositions(transactions: StockTransaction[]): Stock
   const results: StockPositionSummary[] = [];
 
   for (const [_, txs] of grouped) {
-    // 按日期排序
-    const sorted = txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // 按日期排序（最近的在前）
+    const sorted = sortTransactionsDesc(txs);
 
     let totalQuantity = 0;
     let totalCost = 0;
@@ -227,7 +232,8 @@ export function calculateFundPositions(transactions: FundTransaction[]): FundPos
   const results: FundPositionSummary[] = [];
 
   for (const [_, txs] of grouped) {
-    const sorted = txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // 按日期排序（最近的在前）
+    const sorted = sortTransactionsDesc(txs);
 
     let totalShares = 0;
     let totalCost = 0;

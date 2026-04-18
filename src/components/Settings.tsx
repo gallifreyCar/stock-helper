@@ -260,7 +260,10 @@ export function Settings() {
               <p className="text-sm text-gray-500">导出JSON文件备份你的持仓数据</p>
             </div>
             <button
-              onClick={exportData}
+              onClick={() => {
+                exportData();
+                alert('数据已导出！文件已保存到下载目录');
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
               <Download className="w-4 h-4" />

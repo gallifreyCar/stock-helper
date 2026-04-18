@@ -87,6 +87,21 @@ export function Portfolio() {
     }
   };
 
+  // 更新交易记录
+  const updateTransaction = (tx: StockTransaction | FundTransaction, type: 'stock' | 'fund') => {
+    if (type === 'stock') {
+      setData({
+        ...data,
+        stockTransactions: data.stockTransactions.map(t => t.id === tx.id ? tx as StockTransaction : t),
+      });
+    } else {
+      setData({
+        ...data,
+        fundTransactions: data.fundTransactions.map(t => t.id === tx.id ? tx as FundTransaction : t),
+      });
+    }
+  };
+
   // 删除整个持仓（清空所有交易记录）
   const deletePosition = (code: string, accountId: string, type: 'stock' | 'fund') => {
     if (type === 'stock') {
@@ -340,7 +355,7 @@ export function Portfolio() {
           <h3 className="text-sm font-medium text-gray-700 mb-3">已清仓记录</h3>
           <div className="space-y-2">
             {filteredStocks.filter(p => p.totalQuantity === 0 && p.realizedProfit !== 0).map(pos => (
-              <div key={`sold-${pos.stockCode}`} className="flex items-center justify-between py-2 border-b border-gray-200">
+              <div key={`sold-${pos.stockCode}`} className="flex items-center justify-between py-2 border-b border-gray-200 cursor-pointer hover:bg-gray-100 rounded px-2" onClick={() => setShowHistory(pos)}>
                 <span className="text-sm">{pos.stockName} ({pos.stockCode})</span>
                 <span className={`text-sm font-medium ${pos.realizedProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                   已实现盈亏: {pos.realizedProfit >= 0 ? '+' : ''}{formatMoney(pos.realizedProfit)}
@@ -348,7 +363,7 @@ export function Portfolio() {
               </div>
             ))}
             {filteredFunds.filter(p => p.totalShares === 0 && p.realizedProfit !== 0).map(pos => (
-              <div key={`sold-${pos.fundCode}`} className="flex items-center justify-between py-2 border-b border-gray-200">
+              <div key={`sold-${pos.fundCode}`} className="flex items-center justify-between py-2 border-b border-gray-200 cursor-pointer hover:bg-gray-100 rounded px-2" onClick={() => setShowHistory(pos)}>
                 <span className="text-sm">{pos.fundName} ({pos.fundCode})</span>
                 <span className={`text-sm font-medium ${pos.realizedProfit >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                   已实现盈亏: {pos.realizedProfit >= 0 ? '+' : ''}{formatMoney(pos.realizedProfit)}
@@ -384,6 +399,7 @@ export function Portfolio() {
           onClose={() => setShowHistory(null)}
           onAddTransaction={(tx) => addTransaction(tx, positionType)}
           onDeleteTransaction={(id) => deleteTransaction(id, positionType)}
+          onUpdateTransaction={(tx) => updateTransaction(tx, positionType)}
         />
       )}
     </div>

@@ -11,32 +11,38 @@ interface AddTransactionModalProps {
   accounts: Account[];
   existingCode?: string;
   existingName?: string;
+  editingTransaction?: StockTransaction | FundTransaction;  // 编辑模式
   onClose: () => void;
   onSave: (transaction: StockTransaction | FundTransaction, type: 'stock' | 'fund') => void;
 }
 
-export function AddTransactionModal({ type, accountId, accounts, existingCode, existingName, onClose, onSave }: AddTransactionModalProps) {
-  const [code, setCode] = useState(existingCode || '');
-  const [name, setName] = useState(existingName || '');
-  const [selectedAccountId, setSelectedAccountId] = useState(accountId || accounts[0]?.id || '');
-  const [txType, setTxType] = useState<'buy' | 'sell'>('buy');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+export function AddTransactionModal({ type, accountId, accounts, existingCode, existingName, editingTransaction, onClose, onSave }: AddTransactionModalProps) {
+  // 编辑模式：使用已有交易数据初始化
+  const isEditing = !!editingTransaction;
+  const editTx = editingTransaction as StockTransaction | undefined;
+  const editFundTx = editingTransaction as FundTransaction | undefined;
+
+  const [code, setCode] = useState(existingCode || (isEditing ? (type === 'stock' ? editTx?.stockCode : editFundTx?.fundCode) : '') || '');
+  const [name, setName] = useState(existingName || (isEditing ? (type === 'stock' ? editTx?.stockName : editFundTx?.fundName) : '') || '');
+  const [selectedAccountId, setSelectedAccountId] = useState(accountId || (isEditing ? editingTransaction?.accountId : '') || accounts[0]?.id || '');
+  const [txType, setTxType] = useState<'buy' | 'sell'>(isEditing ? editingTransaction?.type : 'buy' || 'buy');
+  const [date, setDate] = useState(isEditing ? editingTransaction?.date : new Date().toISOString().slice(0, 10) || new Date().toISOString().slice(0, 10));
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
 
   // 股票相关
-  const [price, setPrice] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
-  const [fee, setFee] = useState('0');
-  const [inputMode, setInputMode] = useState<'quantity' | 'amount'>('quantity');
+  const [price, setPrice] = useState(isEditing && type === 'stock' ? editTx?.price?.toString() : '');
+  const [quantity, setQuantity] = useState(isEditing && type === 'stock' ? editTx?.quantity?.toString() : '');
+  const [totalAmount, setTotalAmount] = useState(isEditing && type === 'stock' ? editTx?.amount?.toString() : '');
+  const [fee, setFee] = useState(isEditing && type === 'stock' ? editTx?.fee?.toString() : '0');
+  const [inputMode, setInputMode] = useState<'quantity' | 'amount'>('amount');  // 默认按金额
 
   // 基金相关
-  const [nav, setNav] = useState('');
-  const [shares, setShares] = useState('');
-  const [fundAmount, setFundAmount] = useState('');
-  const [fundFee, setFundFee] = useState('0');
-  const [fundInputMode, setFundInputMode] = useState<'amount' | 'shares'>('amount');
+  const [nav, setNav] = useState(isEditing && type === 'fund' ? editFundTx?.nav?.toString() : '');
+  const [shares, setShares] = useState(isEditing && type === 'fund' ? editFundTx?.shares?.toString() : '');
+  const [fundAmount, setFundAmount] = useState(isEditing && type === 'fund' ? editFundTx?.amount?.toString() : '');
+  const [fundFee, setFundFee] = useState(isEditing && type === 'fund' ? editFundTx?.fee?.toString() : '0');
+  const [fundInputMode, setFundInputMode] = useState<'amount' | 'shares'>('shares');  // 默认按份额
 
   // 初始化时如果有代码就搜索
   useEffect(() => {
@@ -151,7 +157,7 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">
-            添加{type === 'stock' ? '股票' : '基金'}交易
+            {isEditing ? '编辑' : '添加'}{type === 'stock' ? '股票' : '基金'}交易
           </h2>
           <button onClick={onClose} className="text-white/80 hover:text-white">
             <X className="w-5 h-5" />
@@ -263,17 +269,6 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
                   <div className="relative">
                     <input
                       type="number"
-                      value={quantity}
-                      onChange={e => { setQuantity(e.target.value); setInputMode('quantity'); }}
-                      placeholder="股数"
-                      disabled={inputMode === 'amount'}
-                      className={`w-full px-4 py-3 border rounded-lg text-lg ${inputMode === 'amount' ? 'bg-gray-100 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'}`}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">股</span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="number"
                       value={totalAmount}
                       onChange={e => { setTotalAmount(e.target.value); setInputMode('amount'); }}
                       placeholder="金额"
@@ -281,6 +276,17 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
                       className={`w-full px-4 py-3 border rounded-lg text-lg ${inputMode === 'quantity' ? 'bg-gray-100 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'}`}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">元</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={quantity}
+                      onChange={e => { setQuantity(e.target.value); setInputMode('quantity'); }}
+                      placeholder="股数"
+                      disabled={inputMode === 'amount'}
+                      className={`w-full px-4 py-3 border rounded-lg text-lg ${inputMode === 'amount' ? 'bg-gray-100 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'}`}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">股</span>
                   </div>
                 </div>
               </div>
@@ -394,7 +400,7 @@ export function AddTransactionModal({ type, accountId, accounts, existingCode, e
             onClick={handleSave}
             className={`px-6 py-2.5 rounded-lg font-medium text-white ${txType === 'buy' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
           >
-            {txType === 'buy' ? '确认买入' : '确认卖出'}
+            {isEditing ? '保存修改' : (txType === 'buy' ? '确认买入' : '确认卖出')}
           </button>
         </div>
       </div>
