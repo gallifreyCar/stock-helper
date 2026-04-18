@@ -59,10 +59,8 @@ export function Portfolio() {
     return (time >= 570 && time <= 690) || (time >= 780 && time <= 900);
   };
 
-  // 刷新行情（只在交易时间段内自动刷新）
+  // 获取行情（页面加载时获取一次，交易时间内定时刷新）
   useEffect(() => {
-    if (!isInTradingTime()) return;
-
     async function fetchQuotes() {
       setLoading(true);
 
@@ -73,21 +71,29 @@ export function Portfolio() {
       if (stockCodes.length > 0) {
         const quotes = await fetchStockQuotes(stockCodes);
         setStockQuotes(new Map(quotes.map(q => [q.code, q])));
+      } else {
+        setStockQuotes(new Map());
       }
 
       const fundCodes = fPositions.filter(p => p.totalShares > 0).map(p => p.fundCode);
       if (fundCodes.length > 0) {
         setFundNavs(await fetchFundNavs(fundCodes));
+      } else {
+        setFundNavs(new Map());
       }
 
       setLoading(false);
     }
 
+    // 页面加载时获取一次
     fetchQuotes();
-    // 每30秒刷新一次（仅在交易时间内）
-    const interval = setInterval(fetchQuotes, 30000);
-    return () => clearInterval(interval);
-  }, []);
+
+    // 交易时间内每30秒刷新
+    if (isInTradingTime()) {
+      const interval = setInterval(fetchQuotes, 30000);
+      return () => clearInterval(interval);
+    }
+  }, []);  // 不监听交易数据变化
 
   // 筛选持仓
   const filteredStocks = selectedAccount === 'all'
