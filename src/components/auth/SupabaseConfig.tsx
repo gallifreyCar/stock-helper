@@ -58,9 +58,10 @@ export function SupabaseConfig({ onSkip }: SupabaseConfigProps) {
         // 连接成功，保存配置
         saveSupabaseConfig(url, key);
         setSuccess('✅ 连接成功！正在跳转...');
-        // 刷新页面重新初始化 Supabase 客户端
+        // 直接修改 hash 并刷新页面
         setTimeout(() => {
-          window.location.href = window.location.pathname + '#/login';
+          window.location.hash = '#/login';
+          window.location.reload();
         }, 500);
       } else if (response.status === 401) {
         // 401 说明 key 无效
@@ -72,7 +73,8 @@ export function SupabaseConfig({ onSkip }: SupabaseConfigProps) {
         saveSupabaseConfig(url, key);
         setSuccess('配置已保存，正在跳转...');
         setTimeout(() => {
-          window.location.href = window.location.pathname + '#/login';
+          window.location.hash = '#/login';
+          window.location.reload();
         }, 1500);
       } else {
         setError(`连接失败: HTTP ${response.status}`);
