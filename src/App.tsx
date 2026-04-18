@@ -14,6 +14,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && user) {
+      // 检查是否已迁移过
+      const migrated = localStorage.getItem('stock-helper-migrated');
+      if (migrated === user.id) {
+        setShowMigration(false);
+        return;
+      }
+
       // 检查本地是否有待迁移数据
       const saved = localStorage.getItem('stock-helper-data');
       if (saved) {
@@ -205,6 +212,8 @@ function DataMigrationWrapper({
       // 清除本地数据
       localStorage.removeItem('stock-helper-data');
       localStorage.removeItem('stock-helper-migration-pending');
+      // 标记已迁移（与用户ID绑定）
+      localStorage.setItem('stock-helper-migrated', user.id);
 
       // 显示成功状态
       setMigrated(true);
