@@ -264,12 +264,54 @@ export function useStorage() {
     }
   }, [authMode, idMapping]);
 
+  // 查找云端账户 UUID（当 idMapping 没有映射时）
+  const findCloudAccountId = useCallback(async (localAccountId: string, userId: string): Promise<string | null> => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    // 先检查 idMapping
+    if (idMapping.accounts[localAccountId]) {
+      return idMapping.accounts[localAccountId];
+    }
+
+    // 从本地数据获取账户名
+    const localAccount = data.accounts.find(a => a.id === localAccountId);
+    if (!localAccount) return null;
+
+    // 从云端查询同名账户
+    const { data: cloudAccounts } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('name', localAccount.name)
+      .limit(1);
+
+    if (cloudAccounts && cloudAccounts.length > 0) {
+      const cloudId = cloudAccounts[0].id;
+      // 更新 idMapping
+      const newMapping = { ...idMapping, accounts: { ...idMapping.accounts, [localAccountId]: cloudId } };
+      setIdMapping(newMapping);
+      localStorage.setItem(ID_MAPPING_KEY, JSON.stringify(newMapping));
+      return cloudId;
+    }
+    return null;
+  }, [idMapping, data.accounts]);
+
   // 同步单个股票交易到云端
   const syncStockTxToCloud = useCallback(async (tx: StockTransaction, userId: string, accountId?: string) => {
     const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') return tx.id;
 
-    const cloudAccountId = accountId || idMapping.accounts[tx.accountId] || tx.accountId;
+    // 获取云端账户 ID
+    let cloudAccountId: string | null = accountId || idMapping.accounts[tx.accountId] || null;
+    if (!cloudAccountId) {
+      cloudAccountId = await findCloudAccountId(tx.accountId, userId);
+    }
+    if (!cloudAccountId) {
+      console.error('Cannot find cloud account for stock tx:', tx);
+      return tx.id;
+    }
+
     const existingId = idMapping.stockTransactions[tx.id];
 
     if (existingId) {
@@ -314,14 +356,23 @@ export function useStorage() {
       if (error) console.error('Insert stock tx error:', error);
       return tx.id;
     }
-  }, [authMode, idMapping]);
+  }, [authMode, idMapping, findCloudAccountId]);
 
   // 同步单个基金交易到云端
   const syncFundTxToCloud = useCallback(async (tx: FundTransaction, userId: string, accountId?: string) => {
     const supabase = getSupabaseClient();
     if (!supabase || authMode === 'offline') return tx.id;
 
-    const cloudAccountId = accountId || idMapping.accounts[tx.accountId] || tx.accountId;
+    // 获取云端账户 ID
+    let cloudAccountId: string | null = accountId || idMapping.accounts[tx.accountId] || null;
+    if (!cloudAccountId) {
+      cloudAccountId = await findCloudAccountId(tx.accountId, userId);
+    }
+    if (!cloudAccountId) {
+      console.error('Cannot find cloud account for fund tx:', tx);
+      return tx.id;
+    }
+
     const existingId = idMapping.fundTransactions[tx.id];
 
     if (existingId) {
@@ -366,7 +417,7 @@ export function useStorage() {
       if (error) console.error('Insert fund tx error:', error);
       return tx.id;
     }
-  }, [authMode, idMapping]);
+  }, [authMode, idMapping, findCloudAccountId]);
 
   // 同步单个价格提醒到云端
   const syncAlertToCloud = useCallback(async (alert: PriceAlert, userId: string) => {
