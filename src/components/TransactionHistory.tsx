@@ -1,9 +1,10 @@
 // 交易记录历史组件
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { X, Plus, Trash2, TrendingUp, TrendingDown, Edit2 } from 'lucide-react';
+import { useStorage } from '../hooks/useStorage';
+import { calculateStockPositions, calculateFundPositions, generateId } from '../types';
 import type { StockTransaction, FundTransaction, StockPositionSummary, FundPositionSummary, Account } from '../types';
-import { generateId } from '../types';
 import { formatMoney, formatDate } from '../utils/calculator';
 import { AddTransactionModal } from './AddTransactionModal';
 
@@ -30,11 +31,29 @@ export function TransactionHistory({
   onDeleteTransaction,
   onUpdateTransaction,
 }: TransactionHistoryProps) {
+  const { data } = useStorage();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTx, setEditingTx] = useState<StockTransaction | FundTransaction | null>(null);
 
-  const transactions = position.transactions;
-  const realizedProfit = position.realizedProfit;
+  // 从 storage 获取最新数据重新计算
+  const currentPosition = useMemo(() => {
+    if (type === 'stock') {
+      const positions = calculateStockPositions(data.stockTransactions);
+      return positions.find(p =>
+        p.stockCode === (position as StockPositionSummary).stockCode &&
+        p.accountId === position.accountId
+      ) || position as StockPositionSummary;
+    } else {
+      const positions = calculateFundPositions(data.fundTransactions);
+      return positions.find(p =>
+        p.fundCode === (position as FundPositionSummary).fundCode &&
+        p.accountId === position.accountId
+      ) || position as FundPositionSummary;
+    }
+  }, [data.stockTransactions, data.fundTransactions, type, position]);
+
+  const transactions = currentPosition.transactions;
+  const realizedProfit = currentPosition.realizedProfit;
 
   // 计算当前盈亏
   let unrealizedProfit = 0;
@@ -42,14 +61,14 @@ export function TransactionHistory({
   let avgCost = '';
 
   if (type === 'stock') {
-    const sp = position as StockPositionSummary;
+    const sp = currentPosition as StockPositionSummary;
     if (currentPrice) {
       unrealizedProfit = currentPrice * sp.totalQuantity - sp.totalCost;
     }
     currentHolding = `${sp.totalQuantity}股`;
     avgCost = sp.avgPrice.toFixed(2);
   } else {
-    const fp = position as FundPositionSummary;
+    const fp = currentPosition as FundPositionSummary;
     if (currentNav) {
       unrealizedProfit = currentNav * fp.totalShares - fp.totalCost;
     }
@@ -60,8 +79,8 @@ export function TransactionHistory({
   const totalProfit = realizedProfit + unrealizedProfit;
 
   // 获取名称和代码
-  const name = type === 'stock' ? (position as StockPositionSummary).stockName : (position as FundPositionSummary).fundName;
-  const code = type === 'stock' ? (position as StockPositionSummary).stockCode : (position as FundPositionSummary).fundCode;
+  const name = type === 'stock' ? (currentPosition as StockPositionSummary).stockName : (currentPosition as FundPositionSummary).fundName;
+  const code = type === 'stock' ? (currentPosition as StockPositionSummary).stockCode : (currentPosition as FundPositionSummary).fundCode;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -81,7 +100,7 @@ export function TransactionHistory({
         <div className="bg-gray-50 p-4 grid grid-cols-3 gap-4">
           <div className="text-center">
             <p className="text-sm text-gray-500">累计投入</p>
-            <p className="text-lg font-bold text-gray-900">{formatMoney(position.totalCost)}</p>
+            <p className="text-lg font-bold text-gray-900">{formatMoney(currentPosition.totalCost)}</p>
           </div>
           <div className="text-center">
             <p className="text-sm text-gray-500">已实现盈亏</p>
@@ -185,7 +204,7 @@ export function TransactionHistory({
         {showAddModal && (
           <AddTransactionModal
             type={type}
-            accountId={position.accountId}
+            accountId={currentPosition.accountId}
             accounts={accounts}
             existingCode={code}
             existingName={name}

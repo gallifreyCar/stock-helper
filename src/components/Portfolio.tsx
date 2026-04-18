@@ -44,11 +44,28 @@ export function Portfolio() {
     setLoading(false);
   };
 
+  // 判断是否在交易时间段内（周一至周五 9:30-11:30, 13:00-15:00）
+  const isInTradingTime = () => {
+    const now = new Date();
+    const day = now.getDay();
+    if (day === 0 || day === 6) return false;  // 周末不交易
+
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const time = hours * 60 + minutes;
+
+    // 9:30-11:30 = 570-690
+    // 13:00-15:00 = 780-900
+    return (time >= 570 && time <= 690) || (time >= 780 && time <= 900);
+  };
+
+  // 刷新行情（只在交易时间段内自动刷新）
   useEffect(() => {
+    if (!isInTradingTime()) return;
+
     async function fetchQuotes() {
       setLoading(true);
 
-      // 获取有持仓的股票代码（重新计算确保最新）
       const positions = calculateStockPositions(data.stockTransactions);
       const fPositions = calculateFundPositions(data.fundTransactions);
 
@@ -56,22 +73,21 @@ export function Portfolio() {
       if (stockCodes.length > 0) {
         const quotes = await fetchStockQuotes(stockCodes);
         setStockQuotes(new Map(quotes.map(q => [q.code, q])));
-      } else {
-        setStockQuotes(new Map());
       }
 
       const fundCodes = fPositions.filter(p => p.totalShares > 0).map(p => p.fundCode);
       if (fundCodes.length > 0) {
         setFundNavs(await fetchFundNavs(fundCodes));
-      } else {
-        setFundNavs(new Map());
       }
 
       setLoading(false);
     }
 
     fetchQuotes();
-  }, [data.stockTransactions, data.fundTransactions]);
+    // 每30秒刷新一次（仅在交易时间内）
+    const interval = setInterval(fetchQuotes, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 筛选持仓
   const filteredStocks = selectedAccount === 'all'

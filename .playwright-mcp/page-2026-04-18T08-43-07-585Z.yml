@@ -1,0 +1,131 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "投资助手" [ref=e6] [cursor=pointer]:
+        - /url: "#/"
+        - img [ref=e7]
+        - generic [ref=e10]: 投资助手
+      - generic [ref=e11]: A股 · 基金
+  - navigation [ref=e12]:
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "总览" [ref=e16] [cursor=pointer]:
+          - /url: "#/"
+          - img [ref=e17]
+          - text: 总览
+      - listitem [ref=e22]:
+        - link "持仓" [ref=e23] [cursor=pointer]:
+          - /url: "#/portfolio"
+          - img [ref=e24]
+          - text: 持仓
+      - listitem [ref=e27]:
+        - link "筛选" [ref=e28] [cursor=pointer]:
+          - /url: "#/screener"
+          - img [ref=e29]
+          - text: 筛选
+      - listitem [ref=e31]:
+        - link "提醒" [ref=e32] [cursor=pointer]:
+          - /url: "#/alerts"
+          - img [ref=e33]
+          - text: 提醒
+      - listitem [ref=e36]:
+        - link "设置" [ref=e37] [cursor=pointer]:
+          - /url: "#/settings"
+          - img [ref=e38]
+          - text: 设置
+  - main [ref=e41]:
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - combobox [ref=e51]:
+            - option "全部账户" [selected]
+            - option "长期持有"
+            - option "短线交易"
+            - option "基金定投"
+          - generic [ref=e52]:
+            - button "股票" [ref=e53]
+            - button "基金" [ref=e54]
+        - generic [ref=e55]:
+          - button "刷新" [ref=e56]:
+            - img [ref=e57]
+            - text: 刷新
+          - button "添加交易" [ref=e62]:
+            - img [ref=e63]
+            - text: 添加交易
+      - table [ref=e65]:
+        - rowgroup [ref=e66]:
+          - row "股票 成本价 数量 现价 市值 盈亏 操作" [ref=e67]:
+            - columnheader "股票" [ref=e68]
+            - columnheader "成本价" [ref=e69]
+            - columnheader "数量" [ref=e70]
+            - columnheader "现价" [ref=e71]
+            - columnheader "市值" [ref=e72]
+            - columnheader "盈亏" [ref=e73]
+            - columnheader "操作" [ref=e74]
+        - rowgroup [ref=e75]:
+          - row "浦发银行 600000 9.86 1000 - - -" [ref=e128]:
+            - cell "浦发银行 600000" [ref=e129]:
+              - generic [ref=e130]:
+                - paragraph [ref=e131]: 浦发银行
+                - paragraph [ref=e132]: "600000"
+            - cell "9.86" [ref=e133]
+            - cell "1000" [ref=e134]
+            - cell "-" [ref=e135]
+            - cell "-" [ref=e136]
+            - cell "-" [ref=e137]
+            - cell [ref=e138]:
+              - generic [ref=e139]:
+                - button "交易记录" [active] [ref=e140]:
+                  - img [ref=e141]
+                - button "删除持仓" [ref=e145]:
+                  - img [ref=e146]
+      - generic [ref=e150]:
+        - generic [ref=e151]:
+          - generic [ref=e152]:
+            - heading "浦发银行" [level=2] [ref=e153]
+            - paragraph [ref=e154]: "600000"
+          - button [ref=e155]:
+            - img [ref=e156]
+        - generic [ref=e159]:
+          - generic [ref=e160]:
+            - paragraph [ref=e161]: 累计投入
+            - paragraph [ref=e162]: "9860.00"
+          - generic [ref=e163]:
+            - paragraph [ref=e164]: 已实现盈亏
+            - paragraph [ref=e165]: "+0.00"
+          - generic [ref=e166]:
+            - paragraph [ref=e167]: 总盈亏
+            - paragraph [ref=e168]: "+0.00"
+        - generic [ref=e169]:
+          - generic [ref=e170]:
+            - paragraph [ref=e171]: 当前持仓
+            - paragraph [ref=e172]:
+              - text: 1000股
+              - generic [ref=e173]: 成本价 9.86
+          - button "新增交易" [ref=e174]:
+            - img [ref=e175]
+            - text: 新增交易
+        - table [ref=e177]:
+          - rowgroup [ref=e178]:
+            - row "日期 类型 价格 数量 金额 手续费 操作" [ref=e179]:
+              - columnheader "日期" [ref=e180]
+              - columnheader "类型" [ref=e181]
+              - columnheader "价格" [ref=e182]
+              - columnheader "数量" [ref=e183]
+              - columnheader "金额" [ref=e184]
+              - columnheader "手续费" [ref=e185]
+              - columnheader "操作" [ref=e186]
+          - rowgroup [ref=e187]:
+            - row "2026-04-18 买入 9.86 1000 9860.00 0.00" [ref=e188]:
+              - cell "2026-04-18" [ref=e189]
+              - cell "买入" [ref=e190]:
+                - generic [ref=e191]:
+                  - img [ref=e192]
+                  - text: 买入
+              - cell "9.86" [ref=e195]
+              - cell "1000" [ref=e196]
+              - cell "9860.00" [ref=e197]
+              - cell "0.00" [ref=e198]
+              - cell [ref=e199]:
+                - button [ref=e200]:
+                  - img [ref=e201]

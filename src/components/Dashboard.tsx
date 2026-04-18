@@ -22,7 +22,22 @@ export function Dashboard() {
   const clearedStocks = stockPositions.filter(p => p.totalQuantity === 0 && p.realizedProfit !== 0);
   const clearedFunds = fundPositions.filter(p => p.totalShares === 0 && p.realizedProfit !== 0);
 
-  // 获取实时行情
+  // 判断是否在交易时间段内（周一至周五 9:30-11:30, 13:00-15:00）
+  const isInTradingTime = () => {
+    const now = new Date();
+    const day = now.getDay();
+    if (day === 0 || day === 6) return false;  // 周末不交易
+
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const time = hours * 60 + minutes;
+
+    // 9:30-11:30 = 570-690
+    // 13:00-15:00 = 780-900
+    return (time >= 570 && time <= 690) || (time >= 780 && time <= 900);
+  };
+
+  // 获取实时行情（只在交易时间段内自动刷新）
   useEffect(() => {
     async function fetchQuotes() {
       setLoading(true);
@@ -44,7 +59,13 @@ export function Dashboard() {
     }
 
     fetchQuotes();
-  }, [data.stockTransactions, data.fundTransactions]);
+
+    // 只在交易时间内设置定时刷新
+    if (isInTradingTime()) {
+      const interval = setInterval(fetchQuotes, 30000);
+      return () => clearInterval(interval);
+    }
+  }, []);
 
   // 计算总市值和总盈亏
   const totalStockValue = stockPositions.reduce((sum, pos) => {
