@@ -12,6 +12,8 @@ import { ComposedChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Bar } 
 import ReactMarkdown from 'react-markdown';
 import type { KLineData, TechnicalIndicatorsResult, StockNews, StockFundamentals } from '../types/analysis';
 
+type KLinePeriod = 'day' | 'week' | 'month';
+
 export function Analysis() {
   const { data } = useStorage();
   const [searchParams] = useSearchParams();
@@ -21,6 +23,7 @@ export function Analysis() {
   const [error, setError] = useState('');
 
   // 数据状态
+  const [klinePeriod, setKlinePeriod] = useState<KLinePeriod>('day');
   const [klineData, setKlineData] = useState<KLineData[]>([]);
   const [indicators, setIndicators] = useState<TechnicalIndicatorsResult | null>(null);
   const [news, setNews] = useState<StockNews[]>([]);
@@ -71,7 +74,8 @@ export function Analysis() {
       setFundamentals(fundamentalsData);
 
       // 3. 获取 K 线数据
-      const kline = await fetchKLineData(stockCode, 'day', 60);
+      const klineCount = klinePeriod === 'day' ? 60 : klinePeriod === 'week' ? 30 : 12;
+      const kline = await fetchKLineData(stockCode, klinePeriod, klineCount);
       if (kline.length === 0) {
         throw new Error('无法获取 K 线数据，请检查股票代码');
       }
@@ -273,20 +277,69 @@ export function Analysis() {
 
           {/* K 线图表 */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              K 线走势（近60日）
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+                K 线走势
+              </h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setKlinePeriod('day'); if (stockCode) runAnalysis(); }}
+                  className={`px-3 py-1 rounded text-sm ${klinePeriod === 'day' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  日K
+                </button>
+                <button
+                  onClick={() => { setKlinePeriod('week'); if (stockCode) runAnalysis(); }}
+                  className={`px-3 py-1 rounded text-sm ${klinePeriod === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  周K
+                </button>
+                <button
+                  onClick={() => { setKlinePeriod('month'); if (stockCode) runAnalysis(); }}
+                  className={`px-3 py-1 rounded text-sm ${klinePeriod === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  月K
+                </button>
+              </div>
+            </div>
+
+            {/* 最高最低点提示 */}
+            {klineData.length > 0 && (
+              <div className="flex gap-4 mb-2 text-sm">
+                <span className="text-green-600">
+                  最高: {Math.max(...klineData.map(d => d.high)).toFixed(2)}元
+                  <span className="text-xs text-gray-400 ml-1">
+                    ({klineData.find(d => d.high === Math.max(...klineData.map(x => x.high)))?.date?.slice(5) || ''})
+                  </span>
+                </span>
+                <span className="text-red-600">
+                  最低: {Math.min(...klineData.map(d => d.low)).toFixed(2)}元
+                  <span className="text-xs text-gray-400 ml-1">
+                    ({klineData.find(d => d.low === Math.min(...klineData.map(x => x.low)))?.date?.slice(5) || ''})
+                  </span>
+                </span>
+              </div>
+            )}
+
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={klineData.map((d, i) => ({
-                  date: d.date.slice(5),
-                  close: d.close,
-                  high: d.high,
-                  low: d.low,
-                  volume: d.volume / 10000,
-                  macd: indicators?.macd.macd[i - (klineData.length - (indicators?.macd.macd.length || 0))] || 0,
-                }))}>
+                <ComposedChart data={klineData.map((d, i) => {
+                  const highest = klineData.length > 0 ? Math.max(...klineData.map(x => x.high)) : 0;
+                  const lowest = klineData.length > 0 ? Math.min(...klineData.map(x => x.low)) : 0;
+                  const isHighest = d.high === highest;
+                  const isLowest = d.low === lowest;
+                  return {
+                    date: d.date.slice(5),
+                    close: d.close,
+                    high: d.high,
+                    low: d.low,
+                    volume: d.volume / 10000,
+                    macd: indicators?.macd.macd[i - (klineData.length - (indicators?.macd.macd.length || 0))] || 0,
+                    isHighest,
+                    isLowest,
+                  };
+                })}>
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
                   <YAxis yAxisId="price" domain={['auto', 'auto']} width={60} />
                   <YAxis yAxisId="volume" orientation="right" domain={['auto', 'auto']} width={0} />
@@ -298,8 +351,8 @@ export function Analysis() {
                           <div className="bg-white border shadow-lg rounded p-3 text-sm">
                             <p className="font-medium">{d.date}</p>
                             <p>收盘: <span className="font-medium">{d.close?.toFixed(2)}</span></p>
-                            <p>最高: {d.high?.toFixed(2)}</p>
-                            <p>最低: {d.low?.toFixed(2)}</p>
+                            <p>最高: {d.high?.toFixed(2)} {d.isHighest && <span className="text-green-600 font-medium">★最高</span>}</p>
+                            <p>最低: {d.low?.toFixed(2)} {d.isLowest && <span className="text-red-600 font-medium">★最低</span>}</p>
                             <p>成交量: {d.volume?.toFixed(0)}万手</p>
                           </div>
                         );
@@ -312,7 +365,15 @@ export function Analysis() {
                     type="monotone"
                     dataKey="close"
                     stroke="#3b82f6"
-                    dot={false}
+                    dot={({ cx, cy, payload }) => {
+                      if (payload.isHighest) {
+                        return <circle cx={cx} cy={cy} r={4} fill="#22c55e" stroke="#22c55e" />;
+                      }
+                      if (payload.isLowest) {
+                        return <circle cx={cx} cy={cy} r={4} fill="#ef4444" stroke="#ef4444" />;
+                      }
+                      return null;
+                    }}
                     strokeWidth={2}
                   />
                   <Bar

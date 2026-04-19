@@ -347,28 +347,32 @@ export async function fetchStockFundamentals(code: string): Promise<StockFundame
   };
 }
 
-// ===== 新闻数据 API（多数据源）=====
+// ===== 新闻数据 API（简化版）=====
 
-// 获取股票相关新闻（多源搜索）
+// 获取股票相关新闻
 export async function fetchStockNews(
-  code: string,
+  _code: string,
   keyword: string,
   count: number = 10
 ): Promise<StockNews[]> {
   const results: StockNews[] = [];
 
-  // 1. 腾讯财经新闻
-  const tencentNews = await fetchNewsFromTencent(code, keyword, Math.ceil(count / 2));
-  results.push(...tencentNews);
+  // 1. 尝试新浪财经新闻（通过财经新闻列表）
+  const sinaNews = await fetchNewsFromSina(keyword, count);
+  if (sinaNews.length > 0) {
+    results.push(...sinaNews);
+  }
 
-  // 2. 东方财富新闻
-  const emNews = await fetchNewsFromEastmoney(code, keyword, Math.ceil(count / 2));
-  results.push(...emNews);
-
-  // 3. 如果新闻太少，用搜索引擎补充
+  // 2. 尝试搜狐财经
   if (results.length < count) {
-    const searchNews = await fetchNewsFromSearch(keyword, count - results.length);
-    results.push(...searchNews);
+    const sohuNews = await fetchNewsFromSohu(keyword, count - results.length);
+    results.push(...sohuNews);
+  }
+
+  // 3. 尝试头条财经
+  if (results.length < count) {
+    const toutiaoNews = await fetchNewsFromToutiao(keyword, count - results.length);
+    results.push(...toutiaoNews);
   }
 
   // 去重并返回
@@ -379,112 +383,11 @@ export async function fetchStockNews(
   return uniqueResults.slice(0, count);
 }
 
-// 腾讯财经新闻
-async function fetchNewsFromTencent(code: string, _keyword: string, count: number): Promise<StockNews[]> {
+// 新浪财经新闻（通过公开的财经新闻API）
+async function fetchNewsFromSina(keyword: string, count: number): Promise<StockNews[]> {
   try {
-    const shsz = code.startsWith('6') ? 'sh' : 'sz';
-    const apiUrl = `https://qt.gtimg.cn/q=${shsz}${code}&format=news`;
-
-    for (const proxy of CORS_PROXIES) {
-      try {
-        const url = proxy(apiUrl);
-        const response = await fetch(url, {
-          signal: AbortSignal.timeout(8000),
-        });
-
-        if (!response.ok) continue;
-
-        const text = await response.text();
-
-        // 腾讯新闻格式解析
-        const newsItems: StockNews[] = [];
-        const newsRegex = /title="([^"]+)"[^>]*href="([^"]+)"[^>]*>/g;
-        let match;
-        let index = 0;
-
-        while ((match = newsRegex.exec(text)) !== null && newsItems.length < count) {
-          const title = match[1];
-          if (title && title.length > 5 && !title.includes('腾讯') && !title.includes('qq.com')) {
-            newsItems.push({
-              id: `tencent-${index}`,
-              title: title.trim(),
-              summary: '',
-              source: '腾讯财经',
-              publishTime: '',
-              url: match[2] || '',
-            });
-            index++;
-          }
-        }
-
-        if (newsItems.length > 0) return newsItems;
-      } catch (e) {
-        console.warn('Tencent news proxy failed');
-      }
-    }
-  } catch (e) {
-    console.warn('Tencent news failed:', e);
-  }
-
-  return [];
-}
-
-// 东方财富新闻
-async function fetchNewsFromEastmoney(code: string, _keyword: string, count: number): Promise<StockNews[]> {
-  try {
-    const secid = code.startsWith('6') ? `SH${code}` : `SZ${code}`;
-    const apiUrl = `https://npinterface.eastmoney.com/NewsInformation/NewsInformationGet?code=${secid}&pageSize=${count}&pageNum=1&type=0`;
-
-    for (const proxy of CORS_PROXIES) {
-      try {
-        const url = proxy(apiUrl);
-        const response = await fetch(url, {
-          signal: AbortSignal.timeout(8000),
-        });
-
-        if (!response.ok) continue;
-
-        // 先获取text，再尝试解析JSON（防止HTML响应导致JSON解析错误）
-        const text = await response.text();
-
-        // 检查是否是JSON格式
-        if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) {
-          continue;
-        }
-
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          continue;
-        }
-
-        if (data?.NewsList && Array.isArray(data.NewsList)) {
-          return data.NewsList.map((item: any, index: number) => ({
-            id: `em-${index}`,
-            title: item.InfoTitle || '',
-            summary: item.InfoContent?.slice(0, 200) || '',
-            source: item.InfoSource || '东方财富',
-            publishTime: item.InfoTime || '',
-            url: item.InfoUrl || '',
-          })).filter((item: StockNews) => item.title.length > 5);
-        }
-      } catch (e) {
-        console.warn('Eastmoney news proxy failed');
-      }
-    }
-  } catch (e) {
-    console.warn('Eastmoney news failed:', e);
-  }
-
-  return [];
-}
-
-// 搜索引擎新闻（备用）
-async function fetchNewsFromSearch(keyword: string, count: number): Promise<StockNews[]> {
-  try {
-    // 使用搜狗新闻搜索（相对开放）
-    const apiUrl = `https://news.sogou.com/news?query=${encodeURIComponent(keyword)}&sort=1`;
+    // 新浪财经的公开新闻搜索
+    const apiUrl = `https://search.sina.com.cn/?q=${encodeURIComponent(keyword)}&c=news&sort=time`;
 
     for (const proxy of CORS_PROXIES) {
       try {
@@ -497,7 +400,56 @@ async function fetchNewsFromSearch(keyword: string, count: number): Promise<Stoc
 
         const text = await response.text();
 
-        // 解析搜狗新闻HTML
+        // 解析搜索结果HTML
+        const newsItems: StockNews[] = [];
+        // 新浪搜索结果格式
+        const titleRegex = /<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+        let match;
+        let index = 0;
+
+        while ((match = titleRegex.exec(text)) !== null && newsItems.length < count) {
+          const title = match[2].replace(/<[^>]+>/g, '').trim();
+          if (title && title.length > 10 && !title.includes('新浪')) {
+            newsItems.push({
+              id: `sina-${index}`,
+              title: title,
+              summary: '',
+              source: '新浪财经',
+              publishTime: '',
+              url: match[1],
+            });
+            index++;
+          }
+        }
+
+        if (newsItems.length > 0) return newsItems;
+      } catch (e) {
+        console.warn('Sina news proxy failed');
+      }
+    }
+  } catch (e) {
+    console.warn('Sina news failed:', e);
+  }
+
+  return [];
+}
+
+// 搜狐财经新闻
+async function fetchNewsFromSohu(keyword: string, count: number): Promise<StockNews[]> {
+  try {
+    const apiUrl = `https://search.sohu.com/?keyword=${encodeURIComponent(keyword)}&type=news`;
+
+    for (const proxy of CORS_PROXIES) {
+      try {
+        const url = proxy(apiUrl);
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) continue;
+
+        const text = await response.text();
+
         const newsItems: StockNews[] = [];
         const titleRegex = /<a[^>]*class="news-title[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
         let match;
@@ -507,10 +459,10 @@ async function fetchNewsFromSearch(keyword: string, count: number): Promise<Stoc
           const title = match[2].replace(/<[^>]+>/g, '').trim();
           if (title && title.length > 10) {
             newsItems.push({
-              id: `search-${index}`,
+              id: `sohu-${index}`,
               title: title,
               summary: '',
-              source: '新闻搜索',
+              source: '搜狐财经',
               publishTime: '',
               url: match[1],
             });
@@ -518,28 +470,23 @@ async function fetchNewsFromSearch(keyword: string, count: number): Promise<Stoc
           }
         }
 
-        // 如果搜狗失败，尝试360新闻
-        if (newsItems.length === 0) {
-          const news360 = await fetchNewsFrom360(keyword, count);
-          if (news360.length > 0) return news360;
-        }
-
-        return newsItems;
+        if (newsItems.length > 0) return newsItems;
       } catch (e) {
-        console.warn('Search news proxy failed');
+        console.warn('Sohu news proxy failed');
       }
     }
   } catch (e) {
-    console.warn('Search news failed:', e);
+    console.warn('Sohu news failed:', e);
   }
 
   return [];
 }
 
-// 360新闻搜索
-async function fetchNewsFrom360(keyword: string, count: number): Promise<StockNews[]> {
+// 头条财经新闻（通过公开搜索）
+async function fetchNewsFromToutiao(keyword: string, count: number): Promise<StockNews[]> {
   try {
-    const apiUrl = `https://news.so.com/ns?q=${encodeURIComponent(keyword)}&src=news`;
+    // 使用头条的公开API（如果可用）
+    const apiUrl = `https://www.toutiao.com/search/?keyword=${encodeURIComponent(keyword)}&type=news`;
 
     for (const proxy of CORS_PROXIES) {
       try {
@@ -553,19 +500,19 @@ async function fetchNewsFrom360(keyword: string, count: number): Promise<StockNe
         const text = await response.text();
 
         const newsItems: StockNews[] = [];
-        // 360新闻HTML结构
-        const titleRegex = /<h3[^>]*><a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+        // 头条搜索结果格式
+        const titleRegex = /<a[^>]*href="([^"]+)"[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/a>/gi;
         let match;
         let index = 0;
 
         while ((match = titleRegex.exec(text)) !== null && newsItems.length < count) {
-          const title = match[2].trim();
+          const title = match[2].replace(/<[^>]+>/g, '').trim();
           if (title && title.length > 10) {
             newsItems.push({
-              id: `360-${index}`,
+              id: `toutiao-${index}`,
               title: title,
               summary: '',
-              source: '360新闻',
+              source: '头条财经',
               publishTime: '',
               url: match[1],
             });
@@ -573,13 +520,13 @@ async function fetchNewsFrom360(keyword: string, count: number): Promise<StockNe
           }
         }
 
-        return newsItems;
+        if (newsItems.length > 0) return newsItems;
       } catch (e) {
-        console.warn('360 news proxy failed');
+        console.warn('Toutiao news proxy failed');
       }
     }
   } catch (e) {
-    console.warn('360 news failed:', e);
+    console.warn('Toutiao news failed:', e);
   }
 
   return [];
