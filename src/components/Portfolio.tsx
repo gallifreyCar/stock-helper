@@ -1,7 +1,8 @@
 // Portfolio 持仓管理页面 - 使用交易记录
 
 import { useState } from 'react';
-import { Plus, RefreshCw, History, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, RefreshCw, History, Trash2, Sparkles } from 'lucide-react';
 import { useStorage } from '../hooks/useStorage';
 import { useQuotes } from '../hooks/useQuotes';
 import { calculateStockPositionValue, calculateFundPositionValue, formatMoney, formatChange } from '../utils/calculator';
@@ -203,6 +204,13 @@ export function Portfolio() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <Link
+                            to={`/analysis?code=${pos.stockCode}`}
+                            className="text-gray-400 hover:text-purple-600"
+                            title="AI分析"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                          </Link>
                           <button
                             onClick={() => setShowHistory(pos)}
                             className="text-gray-400 hover:text-blue-600"
@@ -289,6 +297,13 @@ export function Portfolio() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <Link
+                            to={`/analysis?code=${pos.fundCode}`}
+                            className="text-gray-400 hover:text-purple-600"
+                            title="AI分析"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                          </Link>
                           <button
                             onClick={() => setShowHistory(pos)}
                             className="text-gray-400 hover:text-blue-600"

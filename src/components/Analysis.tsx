@@ -1,17 +1,20 @@
 // 智能分析主页面
 // 支持搜索任意股票，获取 K线、技术指标、新闻、AI 分析报告
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Sparkles, TrendingUp, TrendingDown, Newspaper, Loader2, AlertCircle } from 'lucide-react';
 import { useStorage } from '../hooks/useStorage';
 import { fetchKLineData, fetchStockNews, fetchStockQuote } from '../utils/api';
 import { calculateAllIndicators, getTechnicalScore } from '../utils/technicalIndicators';
 import { buildAnalysisPrompt, callAIAnalysis } from '../utils/aiAnalysis';
 import { ComposedChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Bar } from 'recharts';
+import ReactMarkdown from 'react-markdown';
 import type { KLineData, TechnicalIndicatorsResult, StockNews } from '../types/analysis';
 
 export function Analysis() {
   const { data } = useStorage();
+  const [searchParams] = useSearchParams();
   const [stockCode, setStockCode] = useState('');
   const [stockName, setStockName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,6 +27,22 @@ export function Analysis() {
   const [currentQuote, setCurrentQuote] = useState<{ price: number; changePercent: number } | null>(null);
   const [aiReport, setAiReport] = useState<string>('');
   const [technicalScore, setTechnicalScore] = useState<number>(50);
+
+  // 从URL参数获取股票代码
+  useEffect(() => {
+    const codeFromUrl = searchParams.get('code');
+    if (codeFromUrl && codeFromUrl !== stockCode) {
+      setStockCode(codeFromUrl);
+    }
+  }, [searchParams]);
+
+  // 当股票代码变化时自动分析（如果是从URL参数来的）
+  useEffect(() => {
+    const codeFromUrl = searchParams.get('code');
+    if (codeFromUrl && stockCode === codeFromUrl && !loading && klineData.length === 0) {
+      runAnalysis();
+    }
+  }, [stockCode, searchParams]);
 
   // 执行分析
   const runAnalysis = useCallback(async () => {
@@ -389,8 +408,8 @@ export function Analysis() {
                 <Sparkles className="w-5 h-5 text-purple-600" />
                 AI 综合分析报告
               </h3>
-              <div className="bg-purple-50 rounded-lg p-4 text-gray-700 leading-relaxed whitespace-pre-wrap">
-                {aiReport}
+              <div className="bg-purple-50 rounded-lg p-4 text-gray-700 leading-relaxed prose prose-sm max-w-none">
+                <ReactMarkdown>{aiReport}</ReactMarkdown>
               </div>
               <p className="text-xs text-gray-400 mt-4 text-center">
                 以上分析仅供参考，不构成投资建议。投资有风险，决策需谨慎。

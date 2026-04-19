@@ -288,91 +288,227 @@ async function fetchKLineFromSina(
   return [];
 }
 
-// ===== 新闻数据 API（东方财富）=====
+// ===== 新闻数据 API（多数据源）=====
 
-const EASTMONEY_NEWS_API = 'https://npinterface.eastmoney.com/NewsInformation/NewsInformationGet';
-
-// 获取股票相关新闻
+// 获取股票相关新闻（多源搜索）
 export async function fetchStockNews(
   code: string,
   keyword: string,
   count: number = 10
 ): Promise<StockNews[]> {
-  try {
-    const params = new URLSearchParams({
-      code: code.startsWith('6') ? `SH${code}` : `SZ${code}`,
-      pageSize: String(count),
-      pageNum: '1',
-      type: '0',  // 0=全部新闻
-    });
+  const results: StockNews[] = [];
 
-    const url = `https://corsproxy.io/?${encodeURIComponent(`${EASTMONEY_NEWS_API}?${params}`)}`;
+  // 1. 腾讯财经新闻
+  const tencentNews = await fetchNewsFromTencent(code, keyword, Math.ceil(count / 2));
+  results.push(...tencentNews);
 
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(10000),
-    });
+  // 2. 东方财富新闻
+  const emNews = await fetchNewsFromEastmoney(code, keyword, Math.ceil(count / 2));
+  results.push(...emNews);
 
-    if (!response.ok) throw new Error('新闻获取失败');
-
-    const data = await response.json();
-
-    if (data?.NewsList) {
-      return data.NewsList.map((item: any, index: number) => ({
-        id: item.InfoCode || String(index),
-        title: item.InfoTitle || '',
-        summary: item.InfoContent?.slice(0, 200) || '',
-        source: item.InfoSource || '东方财富',
-        publishTime: item.InfoTime || '',
-        url: item.InfoUrl || '',
-      }));
-    }
-
-    // 尝试其他新闻 API
-    return await fetchStockNewsAlt(keyword, count);
-  } catch (e) {
-    console.error('Failed to fetch stock news:', e);
-    // 降级方案：使用其他 API
-    return await fetchStockNewsAlt(keyword, count);
+  // 3. 如果新闻太少，用搜索引擎补充
+  if (results.length < count) {
+    const searchNews = await fetchNewsFromSearch(keyword, count - results.length);
+    results.push(...searchNews);
   }
+
+  // 去重并返回
+  const uniqueResults = results.filter((item, index, self) =>
+    index === self.findIndex(t => t.title === item.title)
+  );
+
+  return uniqueResults.slice(0, count);
 }
 
-// 备用新闻 API
-async function fetchStockNewsAlt(keyword: string, count: number): Promise<StockNews[]> {
+// 腾讯财经新闻
+async function fetchNewsFromTencent(code: string, _keyword: string, count: number): Promise<StockNews[]> {
   try {
-    // 使用百度新闻搜索
-    const url = `https://corsproxy.io/?${encodeURIComponent(
-      `https://news.baidu.com/ns?word=${encodeURIComponent(keyword)}&tn=news&rn=${count}`
-    )}`;
+    const shsz = code.startsWith('6') ? 'sh' : 'sz';
+    const apiUrl = `https://qt.gtimg.cn/q=${shsz}${code}&format=news`;
 
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(10000),
-    });
+    for (const proxy of CORS_PROXIES) {
+      try {
+        const url = proxy(apiUrl);
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(8000),
+        });
 
-    if (!response.ok) return [];
+        if (!response.ok) continue;
 
-    const text = await response.text();
+        const text = await response.text();
 
-    // 简单解析 HTML 获取新闻标题
-    const newsItems: StockNews[] = [];
-    const titleRegex = /<h3[^>]*><a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
-    let match;
-    let index = 0;
+        // 腾讯新闻格式解析
+        const newsItems: StockNews[] = [];
+        const newsRegex = /title="([^"]+)"[^>]*href="([^"]+)"[^>]*>/g;
+        let match;
+        let index = 0;
 
-    while ((match = titleRegex.exec(text)) !== null && newsItems.length < count) {
-      newsItems.push({
-        id: String(index),
-        title: match[2].trim(),
-        summary: '',
-        source: '百度新闻',
-        publishTime: '',
-        url: match[1],
-      });
-      index++;
+        while ((match = newsRegex.exec(text)) !== null && newsItems.length < count) {
+          const title = match[1];
+          if (title && title.length > 5 && !title.includes('腾讯') && !title.includes('qq.com')) {
+            newsItems.push({
+              id: `tencent-${index}`,
+              title: title.trim(),
+              summary: '',
+              source: '腾讯财经',
+              publishTime: '',
+              url: match[2] || '',
+            });
+            index++;
+          }
+        }
+
+        if (newsItems.length > 0) return newsItems;
+      } catch (e) {
+        console.warn('Tencent news proxy failed');
+      }
     }
-
-    return newsItems;
   } catch (e) {
-    console.error('Alt news API failed:', e);
-    return [];
+    console.warn('Tencent news failed:', e);
   }
+
+  return [];
+}
+
+// 东方财富新闻
+async function fetchNewsFromEastmoney(code: string, _keyword: string, count: number): Promise<StockNews[]> {
+  try {
+    const secid = code.startsWith('6') ? `SH${code}` : `SZ${code}`;
+    const apiUrl = `https://npinterface.eastmoney.com/NewsInformation/NewsInformationGet?code=${secid}&pageSize=${count}&pageNum=1&type=0`;
+
+    for (const proxy of CORS_PROXIES) {
+      try {
+        const url = proxy(apiUrl);
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(8000),
+        });
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+
+        if (data?.NewsList && Array.isArray(data.NewsList)) {
+          return data.NewsList.map((item: any, index: number) => ({
+            id: `em-${index}`,
+            title: item.InfoTitle || '',
+            summary: item.InfoContent?.slice(0, 200) || '',
+            source: item.InfoSource || '东方财富',
+            publishTime: item.InfoTime || '',
+            url: item.InfoUrl || '',
+          })).filter((item: StockNews) => item.title.length > 5);
+        }
+      } catch (e) {
+        console.warn('Eastmoney news proxy failed');
+      }
+    }
+  } catch (e) {
+    console.warn('Eastmoney news failed:', e);
+  }
+
+  return [];
+}
+
+// 搜索引擎新闻（备用）
+async function fetchNewsFromSearch(keyword: string, count: number): Promise<StockNews[]> {
+  try {
+    // 使用搜狗新闻搜索（相对开放）
+    const apiUrl = `https://news.sogou.com/news?query=${encodeURIComponent(keyword)}&sort=1`;
+
+    for (const proxy of CORS_PROXIES) {
+      try {
+        const url = proxy(apiUrl);
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) continue;
+
+        const text = await response.text();
+
+        // 解析搜狗新闻HTML
+        const newsItems: StockNews[] = [];
+        const titleRegex = /<a[^>]*class="news-title[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+        let match;
+        let index = 0;
+
+        while ((match = titleRegex.exec(text)) !== null && newsItems.length < count) {
+          const title = match[2].replace(/<[^>]+>/g, '').trim();
+          if (title && title.length > 10) {
+            newsItems.push({
+              id: `search-${index}`,
+              title: title,
+              summary: '',
+              source: '新闻搜索',
+              publishTime: '',
+              url: match[1],
+            });
+            index++;
+          }
+        }
+
+        // 如果搜狗失败，尝试360新闻
+        if (newsItems.length === 0) {
+          const news360 = await fetchNewsFrom360(keyword, count);
+          if (news360.length > 0) return news360;
+        }
+
+        return newsItems;
+      } catch (e) {
+        console.warn('Search news proxy failed');
+      }
+    }
+  } catch (e) {
+    console.warn('Search news failed:', e);
+  }
+
+  return [];
+}
+
+// 360新闻搜索
+async function fetchNewsFrom360(keyword: string, count: number): Promise<StockNews[]> {
+  try {
+    const apiUrl = `https://news.so.com/ns?q=${encodeURIComponent(keyword)}&src=news`;
+
+    for (const proxy of CORS_PROXIES) {
+      try {
+        const url = proxy(apiUrl);
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) continue;
+
+        const text = await response.text();
+
+        const newsItems: StockNews[] = [];
+        // 360新闻HTML结构
+        const titleRegex = /<h3[^>]*><a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+        let match;
+        let index = 0;
+
+        while ((match = titleRegex.exec(text)) !== null && newsItems.length < count) {
+          const title = match[2].trim();
+          if (title && title.length > 10) {
+            newsItems.push({
+              id: `360-${index}`,
+              title: title,
+              summary: '',
+              source: '360新闻',
+              publishTime: '',
+              url: match[1],
+            });
+            index++;
+          }
+        }
+
+        return newsItems;
+      } catch (e) {
+        console.warn('360 news proxy failed');
+      }
+    }
+  } catch (e) {
+    console.warn('360 news failed:', e);
+  }
+
+  return [];
 }
