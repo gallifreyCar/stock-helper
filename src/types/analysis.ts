@@ -60,6 +60,17 @@ export interface StockNews {
   sentimentScore?: number;  // 情感分数 -1 到 1
 }
 
+// 股票基本面数据
+export interface StockFundamentals {
+  pe: number | null;        // 市盈率
+  pb: number | null;        // 市净率
+  roe: number | null;       // 净资产收益率（%）
+  totalMarketValue: number | null;  // 总市值（亿）
+  circulatingMarketValue: number | null;  // 流通市值（亿）
+  eps: number | null;       // 每股收益
+  bvps: number | null;      // 每股净资产
+}
+
 // 分析请求参数
 export interface AnalysisRequest {
   stockCode: string;

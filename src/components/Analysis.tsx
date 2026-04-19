@@ -5,12 +5,12 @@ import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Sparkles, TrendingUp, TrendingDown, Newspaper, Loader2, AlertCircle } from 'lucide-react';
 import { useStorage } from '../hooks/useStorage';
-import { fetchKLineData, fetchStockNews, fetchStockQuote } from '../utils/api';
+import { fetchKLineData, fetchStockNews, fetchStockQuote, fetchStockFundamentals } from '../utils/api';
 import { calculateAllIndicators, getTechnicalScore } from '../utils/technicalIndicators';
 import { buildAnalysisPrompt, callAIAnalysis } from '../utils/aiAnalysis';
 import { ComposedChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Bar } from 'recharts';
 import ReactMarkdown from 'react-markdown';
-import type { KLineData, TechnicalIndicatorsResult, StockNews } from '../types/analysis';
+import type { KLineData, TechnicalIndicatorsResult, StockNews, StockFundamentals } from '../types/analysis';
 
 export function Analysis() {
   const { data } = useStorage();
@@ -27,6 +27,7 @@ export function Analysis() {
   const [currentQuote, setCurrentQuote] = useState<{ price: number; changePercent: number } | null>(null);
   const [aiReport, setAiReport] = useState<string>('');
   const [technicalScore, setTechnicalScore] = useState<number>(50);
+  const [fundamentals, setFundamentals] = useState<StockFundamentals | null>(null);
 
   // 从URL参数获取股票代码
   useEffect(() => {
@@ -55,6 +56,7 @@ export function Analysis() {
     setIndicators(null);
     setNews([]);
     setCurrentQuote(null);
+    setFundamentals(null);
 
     try {
       // 1. 获取当前行情
@@ -64,23 +66,27 @@ export function Analysis() {
         setStockName(quote.name);
       }
 
-      // 2. 获取 K 线数据
+      // 2. 获取基本面数据（PE/PB/ROE）
+      const fundamentalsData = await fetchStockFundamentals(stockCode);
+      setFundamentals(fundamentalsData);
+
+      // 3. 获取 K 线数据
       const kline = await fetchKLineData(stockCode, 'day', 60);
       if (kline.length === 0) {
         throw new Error('无法获取 K 线数据，请检查股票代码');
       }
       setKlineData(kline);
 
-      // 3. 计算技术指标
+      // 4. 计算技术指标
       const techIndicators = calculateAllIndicators(kline);
       setIndicators(techIndicators);
       setTechnicalScore(getTechnicalScore(techIndicators));
 
-      // 4. 获取新闻
+      // 5. 获取新闻
       const newsData = await fetchStockNews(stockCode, quote?.name || stockCode, 10);
       setNews(newsData);
 
-      // 5. AI 综合分析
+      // 6. AI 综合分析
       const aiConfig = data.settings.aiConfig;
       if (aiConfig?.apiKey) {
         const prompt = buildAnalysisPrompt({
@@ -91,9 +97,9 @@ export function Analysis() {
           klineData: kline,
           indicators: techIndicators,
           news: newsData,
-          pe: null,
-          pb: null,
-          roe: null,
+          pe: fundamentalsData.pe,
+          pb: fundamentalsData.pb,
+          roe: fundamentalsData.roe,
         });
 
         const report = await callAIAnalysis(prompt, aiConfig);
@@ -228,6 +234,42 @@ export function Analysis() {
               </div>
             </div>
           </div>
+
+          {/* 基本面数据 */}
+          {fundamentals && (fundamentals.pe || fundamentals.pb || fundamentals.roe) && (
+            <div className="bg-white rounded-lg shadow p-4">
+              <p className="text-sm text-gray-500 mb-2">基本面数据</p>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="p-2 bg-gray-50 rounded">
+                  <p className="text-xs text-gray-500">PE市盈率</p>
+                  <p className={`font-medium ${fundamentals.pe && fundamentals.pe < 15 ? 'text-green-600' : fundamentals.pe && fundamentals.pe > 30 ? 'text-red-600' : 'text-gray-600'}`}>
+                    {fundamentals.pe?.toFixed(2) || '-'}
+                  </p>
+                </div>
+                <div className="p-2 bg-gray-50 rounded">
+                  <p className="text-xs text-gray-500">PB市净率</p>
+                  <p className={`font-medium ${fundamentals.pb && fundamentals.pb < 1 ? 'text-green-600' : fundamentals.pb && fundamentals.pb > 3 ? 'text-red-600' : 'text-gray-600'}`}>
+                    {fundamentals.pb?.toFixed(2) || '-'}
+                  </p>
+                </div>
+                <div className="p-2 bg-gray-50 rounded">
+                  <p className="text-xs text-gray-500">ROE收益率</p>
+                  <p className={`font-medium ${fundamentals.roe && fundamentals.roe > 15 ? 'text-green-600' : fundamentals.roe && fundamentals.roe < 5 ? 'text-red-600' : 'text-gray-600'}`}>
+                    {fundamentals.roe ? `${fundamentals.roe.toFixed(2)}%` : '-'}
+                  </p>
+                </div>
+                <div className="p-2 bg-gray-50 rounded">
+                  <p className="text-xs text-gray-500">总市值</p>
+                  <p className="font-medium text-gray-600">
+                    {fundamentals.totalMarketValue ? `${fundamentals.totalMarketValue.toFixed(0)}亿` : '-'}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2 text-center">
+                PE&lt;15 或 PB&lt;1 标为绿色表示估值偏低；ROE&gt;15 表示盈利能力强
+              </p>
+            </div>
+          )}
 
           {/* K 线图表 */}
           <div className="bg-white rounded-lg shadow p-6">

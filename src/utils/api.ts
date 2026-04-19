@@ -1,7 +1,7 @@
 // API 调用封装 - 使用腾讯财经API（更稳定）
 
 import type { StockQuote } from '../types';
-import type { KLineData, StockNews } from '../types/analysis';
+import type { KLineData, StockNews, StockFundamentals } from '../types/analysis';
 import { formatStockCode } from '../types';
 
 const TENCENT_API_BASE = 'https://qt.gtimg.cn/q=';
@@ -288,6 +288,65 @@ async function fetchKLineFromSina(
   return [];
 }
 
+// ===== 基本面数据 API =====
+
+// 获取股票基本面数据（PE/PB/ROE等）
+export async function fetchStockFundamentals(code: string): Promise<StockFundamentals> {
+  const secid = code.startsWith('6') ? `1.${code}` : `0.${code}`;
+
+  // 东方财富股票信息API
+  const apiUrl = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f57,f58,f107,f108,f109,f110,f111,f112,f113,f114,f115,f116,f117,f118,f119,f120,f121,f122,f123,f124,f125,f126,f127,f128,f129,f130,f131,f132,f133,f134,f135,f136,f137,f138,f139,f140,f141,f142,f143,f144,f145,f146,f147,f148,f149,f150`;
+
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const url = proxy(apiUrl);
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+
+      if (data?.data) {
+        const d = data.data;
+        // 东方财富字段映射
+        // f57: 股票代码
+        // f58: 股票名称
+        // f107: 市盈率（动态）
+        // f108: 市净率
+        // f109: 净资产收益率
+        // f110: 总市值
+        // f111: 流通市值
+        // f112: 每股收益
+        // f113: 每股净资产
+        return {
+          pe: d.f107 !== null && d.f107 !== undefined ? parseFloat(d.f107) : null,
+          pb: d.f108 !== null && d.f108 !== undefined ? parseFloat(d.f108) : null,
+          roe: d.f109 !== null && d.f109 !== undefined ? parseFloat(d.f109) : null,
+          totalMarketValue: d.f110 !== null && d.f110 !== undefined ? parseFloat(d.f110) / 100000000 : null, // 转为亿
+          circulatingMarketValue: d.f111 !== null && d.f111 !== undefined ? parseFloat(d.f111) / 100000000 : null,
+          eps: d.f112 !== null && d.f112 !== undefined ? parseFloat(d.f112) : null,
+          bvps: d.f113 !== null && d.f113 !== undefined ? parseFloat(d.f113) : null,
+        };
+      }
+    } catch (e) {
+      console.warn('Stock fundamentals proxy failed:', proxy(apiUrl));
+    }
+  }
+
+  // 返回空数据而不是抛错
+  return {
+    pe: null,
+    pb: null,
+    roe: null,
+    totalMarketValue: null,
+    circulatingMarketValue: null,
+    eps: null,
+    bvps: null,
+  };
+}
+
 // ===== 新闻数据 API（多数据源）=====
 
 // 获取股票相关新闻（多源搜索）
@@ -385,7 +444,20 @@ async function fetchNewsFromEastmoney(code: string, _keyword: string, count: num
 
         if (!response.ok) continue;
 
-        const data = await response.json();
+        // 先获取text，再尝试解析JSON（防止HTML响应导致JSON解析错误）
+        const text = await response.text();
+
+        // 检查是否是JSON格式
+        if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) {
+          continue;
+        }
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          continue;
+        }
 
         if (data?.NewsList && Array.isArray(data.NewsList)) {
           return data.NewsList.map((item: any, index: number) => ({
