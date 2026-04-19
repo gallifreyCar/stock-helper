@@ -63,21 +63,21 @@ export function Analysis() {
 
     try {
       // 1. 获取当前行情
-      const quote = await fetchStockQuote(stockCode);
+      const quote = await fetchStockQuote(stockCode, data.settings.corsProxyUrl);
       if (quote) {
         setCurrentQuote({ price: quote.price, changePercent: quote.changePercent });
         setStockName(quote.name);
       }
 
       // 2. 获取基本面数据（PE/PB/ROE）
-      const fundamentalsData = await fetchStockFundamentals(stockCode);
+      const fundamentalsData = await fetchStockFundamentals(stockCode, data.settings.corsProxyUrl);
       setFundamentals(fundamentalsData);
 
       // 3. 获取 K 线数据
       const klineCount = klinePeriod === 'day' ? 60 : klinePeriod === 'week' ? 30 : 12;
-      const kline = await fetchKLineData(stockCode, klinePeriod, klineCount);
+      const kline = await fetchKLineData(stockCode, klinePeriod, klineCount, data.settings.corsProxyUrl);
       if (kline.length === 0) {
-        throw new Error('无法获取 K 线数据，请检查股票代码');
+        throw new Error('无法获取 K 线数据，请检查股票代码或配置 CORS 代理');
       }
       setKlineData(kline);
 
@@ -86,8 +86,16 @@ export function Analysis() {
       setIndicators(techIndicators);
       setTechnicalScore(getTechnicalScore(techIndicators));
 
-      // 5. 获取新闻
-      const newsData = await fetchStockNews(stockCode, quote?.name || stockCode, 10);
+      // 5. 获取新闻（RSSHub 默认使用已部署的地址）
+      const rsshubUrl = data.settings.rsshubUrl || 'https://rrs-hub.vercel.app';
+      const newsData = await fetchStockNews(
+        stockCode,
+        quote?.name || stockCode,
+        10,
+        data.settings.tianApiKey,
+        rsshubUrl,
+        data.settings.corsProxyUrl
+      );
       setNews(newsData);
 
       // 6. AI 综合分析

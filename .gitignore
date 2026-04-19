@@ -25,3 +25,4 @@ dist-ssr
 
 # Playwright MCP temp files
 .playwright-mcp/
+.vercel

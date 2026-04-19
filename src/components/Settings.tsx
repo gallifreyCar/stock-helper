@@ -1,7 +1,7 @@
 // Settings 设置页面
 
 import { useRef, useState } from 'react';
-import { Download, Upload, Trash2, Database, Sparkles, Key, Check, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Download, Upload, Trash2, Database, Sparkles, Key, Check, Eye, EyeOff, RefreshCw, Newspaper } from 'lucide-react';
 import { useStorage } from '../hooks/useStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { AI_PROVIDERS, type AIConfig } from '../types';
@@ -16,7 +16,13 @@ export function Settings() {
   const [aiConfig, setAiConfig] = useState<AIConfig>(
     data.settings.aiConfig || { provider: 'deepseek', apiKey: '' }
   );
+  const [tianApiKey, setTianApiKey] = useState<string>(data.settings.tianApiKey || '');
+  const [rsshubUrl, setRsshubUrl] = useState<string>(data.settings.rsshubUrl || 'https://rrs-hub.vercel.app');
+  const [corsProxyUrl, setCorsProxyUrl] = useState<string>(data.settings.corsProxyUrl || '');
   const [testResult, setTestResult] = useState<'success' | 'error' | 'testing' | null>(null);
+  const [tianTestResult, setTianTestResult] = useState<'success' | 'error' | 'testing' | null>(null);
+  const [rsshubTestResult, setRsshubTestResult] = useState<'success' | 'error' | 'testing' | null>(null);
+  const [corsTestResult, setCorsTestResult] = useState<'success' | 'error' | 'testing' | null>(null);
 
   // 保存AI配置
   const saveAiConfig = () => {
@@ -27,6 +33,125 @@ export function Settings() {
       },
     });
     setTestResult(null);
+  };
+
+  // 保存TianAPI配置
+  const saveTianApiKey = () => {
+    updateData({
+      settings: {
+        ...data.settings,
+        tianApiKey,
+      },
+    });
+    setTianTestResult(null);
+  };
+
+  // 保存RSSHub配置
+  const saveRsshubUrl = () => {
+    updateData({
+      settings: {
+        ...data.settings,
+        rsshubUrl,
+      },
+    });
+    setRsshubTestResult(null);
+  };
+
+  // 保存CORS代理配置
+  const saveCorsProxyUrl = () => {
+    updateData({
+      settings: {
+        ...data.settings,
+        corsProxyUrl,
+      },
+    });
+    setCorsTestResult(null);
+  };
+
+  // 测试CORS代理配置
+  const testCorsProxyUrl = async () => {
+    if (!corsProxyUrl) {
+      setCorsTestResult('error');
+      return;
+    }
+
+    setCorsTestResult('testing');
+
+    try {
+      // 测试CORS代理调用东方财富API
+      const testUrl = 'https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600036&lmt=1';
+      const response = await fetch(`${corsProxyUrl}?url=${encodeURIComponent(testUrl)}`);
+
+      if (response.ok) {
+        const text = await response.text();
+        if (text.includes('klines')) {
+          setCorsTestResult('success');
+          saveCorsProxyUrl();
+        } else {
+          setCorsTestResult('error');
+        }
+      } else {
+        setCorsTestResult('error');
+      }
+    } catch (e) {
+      setCorsTestResult('error');
+    }
+  };
+
+  // 测试RSSHub配置
+  const testRsshubUrl = async () => {
+    if (!rsshubUrl) {
+      setRsshubTestResult('error');
+      return;
+    }
+
+    setRsshubTestResult('testing');
+
+    try {
+      // 测试RSSHub调用（获取一条新闻）
+      const response = await fetch(`${rsshubUrl}/eastmoney/search/600036`);
+
+      if (response.ok) {
+        const text = await response.text();
+        // 检查是否包含有效的RSS内容
+        if (text.includes('<item>')) {
+          setRsshubTestResult('success');
+          saveRsshubUrl();
+        } else {
+          setRsshubTestResult('error');
+        }
+      } else {
+        setRsshubTestResult('error');
+      }
+    } catch (e) {
+      setRsshubTestResult('error');
+    }
+  };
+
+  // 测试TianAPI配置
+  const testTianApiKey = async () => {
+    if (!tianApiKey) {
+      setTianTestResult('error');
+      return;
+    }
+
+    setTianTestResult('testing');
+
+    try {
+      // 测试API调用（获取财经新闻）
+      const response = await fetch(`https://apis.tianapi.com/caijing/index?key=${tianApiKey}&num=1`);
+
+      const data = await response.json();
+
+      if (data.code === 200) {
+        setTianTestResult('success');
+        saveTianApiKey();
+      } else {
+        setTianTestResult('error');
+      }
+    } catch (e) {
+      setTianTestResult('error');
+    }
   };
 
   // 测试AI配置
@@ -279,6 +404,169 @@ export function Settings() {
         </div>
       </div>
 
+      {/* 新闻API配置 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Newspaper className="w-5 h-5 text-blue-500" />
+          新闻数据配置
+        </h2>
+
+        <p className="text-sm text-gray-500 mb-4">
+          配置 RSSHub 或 TianAPI 获取实时财经新闻。RSSHub 免费、实时性最好；TianAPI 作为备用。
+        </p>
+
+        <div className="space-y-4">
+          {/* RSSHub URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              RSSHub 地址（优先）
+            </label>
+            <input
+              type="text"
+              value={rsshubUrl}
+              onChange={e => {
+                setRsshubUrl(e.target.value);
+                setRsshubTestResult(null);
+              }}
+              placeholder="https://your-rsshub.vercel.app"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              自托管 RSSHub 地址，免费获取实时新闻。部署教程：
+              <a href="https://docs.rsshub.app/deploy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline ml-1">
+                docs.rsshub.app/deploy
+              </a>
+            </p>
+          </div>
+
+          {/* RSSHub 测试 */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={testRsshubUrl}
+              disabled={!rsshubUrl || rsshubTestResult === 'testing'}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
+            >
+              {rsshubTestResult === 'testing' ? '测试中...' : '测试并保存'}
+              {rsshubTestResult === 'success' && <Check className="w-4 h-4" />}
+            </button>
+            {rsshubTestResult === 'success' && (
+              <span className="text-green-600 text-sm">RSSHub 配置已保存</span>
+            )}
+            {rsshubTestResult === 'error' && (
+              <span className="text-red-600 text-sm">连接失败，请检查地址</span>
+            )}
+          </div>
+
+          {/* 分隔线 */}
+          <hr className="my-4" />
+
+          {/* TianAPI Key */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+              <Key className="w-4 h-4" />
+              TianAPI Key（备用）
+            </label>
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={tianApiKey}
+                onChange={e => {
+                  setTianApiKey(e.target.value);
+                  setTianTestResult(null);
+                }}
+                placeholder="输入TianAPI Key（可选）"
+                className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg"
+              />
+              <button
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              TianAPI 备用，每日100次免费额度。
+              <a href="https://www.tianapi.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline ml-1">
+                tianapi.com
+              </a>
+            </p>
+          </div>
+
+          {/* TianAPI 测试 */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={testTianApiKey}
+              disabled={!tianApiKey || tianTestResult === 'testing'}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-300"
+            >
+              {tianTestResult === 'testing' ? '测试中...' : '测试并保存'}
+              {tianTestResult === 'success' && <Check className="w-4 h-4" />}
+            </button>
+            {tianTestResult === 'success' && (
+              <span className="text-green-600 text-sm">TianAPI 配置已保存</span>
+            )}
+            {tianTestResult === 'error' && (
+              <span className="text-red-600 text-sm">连接失败</span>
+            )}
+          </div>
+
+          {/* 分隔线 */}
+          <hr className="my-4" />
+
+          {/* CORS 代理 URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              CORS 代理地址（生产环境必需）
+            </label>
+            <input
+              type="text"
+              value={corsProxyUrl}
+              onChange={e => {
+                setCorsProxyUrl(e.target.value);
+                setCorsTestResult(null);
+              }}
+              placeholder="https://your-cors-proxy.workers.dev"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              解决跨域问题。推荐使用 Cloudflare Workers 自建代理。
+              <a href="https://github.com/gallifreyCar/stock-helper/tree/main/cors-proxy-worker" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline ml-1">
+                查看部署教程
+              </a>
+            </p>
+          </div>
+
+          {/* CORS 代理测试 */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={testCorsProxyUrl}
+              disabled={!corsProxyUrl || corsTestResult === 'testing'}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
+            >
+              {corsTestResult === 'testing' ? '测试中...' : '测试并保存'}
+              {corsTestResult === 'success' && <Check className="w-4 h-4" />}
+            </button>
+            {corsTestResult === 'success' && (
+              <span className="text-green-600 text-sm">CORS 代理配置已保存</span>
+            )}
+            {corsTestResult === 'error' && (
+              <span className="text-red-600 text-sm">连接失败，请检查地址</span>
+            )}
+          </div>
+        </div>
+
+        {/* 说明 */}
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+          <p>💡 说明：</p>
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>RSSHub</strong>：免费、实时、数据最全（开发环境可用）</li>
+            <li><strong>TianAPI</strong>：每日100次免费额度，无需 CORS 代理</li>
+            <li><strong>CORS 代理</strong>：生产环境访问东方财富 API 必需</li>
+            <li>未配置 CORS 代理时，部分功能在生产环境不可用</li>
+          </ul>
+        </div>
+      </div>
+
       {/* 数据管理 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -376,8 +664,19 @@ export function Settings() {
       </div>
 
       {/* 关于 */}
-      <div className="text-center text-xs text-gray-400">
+      <div className="text-center text-xs text-gray-400 space-y-1">
         <p>A股基金投资助手 v2.0</p>
+        <p>
+          Made by
+          <a
+            href="https://github.com/gallifreyCar"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline ml-1"
+          >
+            gallifreyCar
+          </a>
+        </p>
         <p>数据仅供参考，投资需谨慎</p>
       </div>
     </div>

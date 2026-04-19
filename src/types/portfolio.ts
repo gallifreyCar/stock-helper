@@ -96,6 +96,9 @@ export interface Settings {
   refreshInterval: number;  // 刷新间隔（秒）
   showNotification: boolean;
   aiConfig?: AIConfig;      // AI配置
+  tianApiKey?: string;      // TianAPI Key（财经新闻）
+  rsshubUrl?: string;       // RSSHub URL（财经新闻）
+  corsProxyUrl?: string;    // CORS 代理 URL（解决跨域问题）
 }
 
 // AI配置
